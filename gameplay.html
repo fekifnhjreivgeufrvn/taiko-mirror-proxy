@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taiko Previewer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@400;500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg0: #0a0c12;
+    --bg1: #12151d;
+    --bg2: #1a1e2a;
+    --bg3: #232838;
+    --bg4: #2c3247;
+    --line: #2a2f42;
+    --text: #d9dce6;
+    --text-dim: #767c94;
+    --text-bright: #f4f5f9;
+    --don: #e8493a;
+    --don-glow: rgba(232,73,58,0.45);
+    --kat: #3fb6cf;
+    --kat-glow: rgba(63,182,207,0.45);
+    --accent: #e8c14a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Zen Kaku Gothic New', 'Segoe UI', sans-serif;
+    background:
+      radial-gradient(1200px 700px at 15% -10%, rgba(63,182,207,0.07), transparent 60%),
+      radial-gradient(1200px 700px at 90% 110%, rgba(232,73,58,0.07), transparent 60%),
+      var(--bg0);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+  }
+
+  /* ── Single persistent app shell — nothing here ever navigates away,
+     it only swaps small pieces of content in place. ───────────────── */
+  #app {
+    width: 100%;
+    max-width: 1080px;
+    height: 100%;
+    padding: 16px 18px 18px;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 12px;
+    min-height: 0;
+  }
+
+  /* ── Top bar ───────────────────────────────────────────────────── */
+  #topbar {
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    min-height: 40px;
+  }
+  .brand { display: flex; align-items: baseline; gap: 9px; flex-shrink: 0; }
+  .brand .mark {
+    font-family: 'Kaisei Decol', serif;
+    font-weight: 700;
+    font-size: 1.22rem;
+    letter-spacing: 0.01em;
+    background: linear-gradient(90deg, var(--don), var(--accent) 55%, var(--kat));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .brand .sub { font-size: 0.7rem; color: var(--text-dim); display: none; }
+  @media (min-width: 720px) { .brand .sub { display: inline; } }
+
+  #meta-inline {
+    display: flex; flex-direction: column; min-width: 0; flex: 1;
+    overflow: hidden;
+  }
+  #meta-inline .title { font-size: 0.88rem; font-weight: 700; color: var(--text-bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #meta-inline .sub-line { font-size: 0.68rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; gap: 10px; font-family: 'JetBrains Mono', monospace; }
+  #meta-inline .sub-line b { color: var(--text); font-weight: 600; }
+  #meta-inline.empty .title { color: var(--text-dim); font-weight: 500; }
+
+  #topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  .segmented {
+    display: flex; background: var(--bg2); border: 1px solid var(--line);
+    border-radius: 9px; padding: 2px; gap: 2px;
+  }
+  .segmented button {
+    font-family: inherit; font-size: 0.72rem; font-weight: 600;
+    color: var(--text-dim); background: transparent; border: none;
+    padding: 6px 11px; border-radius: 7px; cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .segmented button.active { background: var(--bg4); color: var(--text-bright); }
+  .segmented button:disabled { opacity: 0.4; cursor: default; }
+
+  #diff-select {
+    background: var(--bg2); color: var(--text-bright);
+    border: 1px solid var(--line); border-radius: 9px;
+    padding: 7px 10px; font-size: 0.76rem; font-family: inherit;
+    cursor: pointer; max-width: 160px;
+  }
+  #diff-select:disabled { opacity: 0.4; cursor: default; }
+
+  #load-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg3); border: 1px solid var(--line);
+    color: var(--text-bright); font-weight: 600; font-size: 0.76rem;
+    padding: 8px 13px; border-radius: 9px; cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    white-space: nowrap;
+  }
+  #load-btn:hover { background: var(--bg2); border-color: var(--accent); }
+  #file-input { display: none; }
+
+  /* ── Stage ─────────────────────────────────────────────────────── */
+  #stage-wrap {
+    grid-row: 2;
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: #05070b;
+    min-height: 0;
+  }
+  /* The actual game view (background art + note canvas) is locked to a
+     16:9 box and letterboxed within #stage-wrap by JS (see syncCanvasSize).
+     osu!taiko's own storyboard coordinate space (VIEW.x0..x1, 854px wide)
+     assumes a 16:9 viewport, so if this box were allowed to stretch to
+     whatever aspect ratio the container happens to have, note spacing on
+     the X axis and note size on the Y axis stop agreeing with each other
+     and notes read as too close together (or too far apart). Locking the
+     aspect ratio here is what keeps spacing faithful to the real game. */
+  #stage-inner {
+    position: absolute; /* left/top/width/height are set in JS */
+    overflow: hidden;
+  }
+  #stage-bg {
+    position: absolute; inset: 0;
+    background-size: cover; background-position: center;
+    transform: scale(1.15);
+    /* No CSS filter here on purpose — a live blur filter's compositing cost
+       scales with on-screen area and gets re-paid every time the canvas
+       above it repaints. The blur is baked into a tiny bitmap once in JS
+       instead (see bakeBlurredBackground), so this layer is a plain,
+       cheap-to-composite static image. */
+  }
+  #stage-bg::after { content: ''; position: absolute; inset: 0; background: rgba(5,7,11,0.45); }
+  #playfield { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+
+  #kiai-tag {
+    position: absolute; top: 10px; left: 12px; z-index: 5;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.63rem; letter-spacing: 0.08em;
+    color: var(--accent); background: rgba(232,193,74,0.14);
+    border: 1px solid rgba(232,193,74,0.35);
+    padding: 3px 9px; border-radius: 999px;
+    opacity: 0; transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
+  #kiai-tag.show { opacity: 1; }
+
+  /* Drag highlight ring drawn over the whole stage, always available for drop */
+  #drop-ring {
+    position: absolute; inset: 0; z-index: 20;
+    border: 2px dashed var(--accent);
+    border-radius: 16px;
+    background: rgba(232,193,74,0.06);
+    display: none;
+    pointer-events: none;
+  }
+  #stage-wrap.drag #drop-ring { display: block; }
+
+  /* Empty state — lives INSIDE the stage, not a separate screen */
+  #empty-state {
+    position: absolute; inset: 0; z-index: 4;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 24px;
+    background: radial-gradient(600px 400px at 50% 40%, rgba(255,255,255,0.03), transparent 70%);
+  }
+  #empty-state .glyph { width: 62px; height: 62px; position: relative; margin-bottom: 14px; }
+  #empty-state .glyph .don, #empty-state .glyph .kat {
+    position: absolute; top: 50%; left: 50%; border-radius: 50%; transform: translate(-50%,-50%);
+  }
+  #empty-state .glyph .don { width: 46px; height: 46px; border: 4px solid var(--don); box-shadow: 0 0 22px var(--don-glow); }
+  #empty-state .glyph .kat { width: 62px; height: 62px; border: 4px solid var(--kat); opacity: 0.55; animation: pulse-ring 2.2s ease-in-out infinite; }
+  @keyframes pulse-ring { 0%,100% { transform: translate(-50%,-50%) scale(1); opacity: 0.55; } 50% { transform: translate(-50%,-50%) scale(1.12); opacity: 0.12; } }
+  #empty-state h1 { font-size: 1.02rem; color: var(--text-bright); font-weight: 700; margin-bottom: 6px; }
+  #empty-state p { font-size: 0.78rem; color: var(--text-dim); line-height: 1.5; margin-bottom: 16px; max-width: 320px; }
+  #empty-state .browse-btn {
+    background: var(--bg3); border: 1px solid var(--line); color: var(--text-bright);
+    font-weight: 600; font-size: 0.78rem; padding: 9px 18px; border-radius: 999px; cursor: pointer;
+  }
+  #empty-state .browse-btn:hover { background: var(--bg2); border-color: var(--accent); }
+  #empty-state .err { margin-top: 12px; font-size: 0.74rem; color: var(--don); display: none; max-width: 340px; }
+
+  #loading-overlay {
+    position: absolute; inset: 0; z-index: 10;
+    display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    background: rgba(5,7,11,0.82);
+  }
+  #loading-overlay.show { display: flex; }
+  #loading-overlay .spinner {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 3px solid var(--line); border-top-color: var(--kat);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading-overlay .msg { font-size: 0.78rem; color: var(--text-dim); }
+
+  /* ── Transport controls (always present; dimmed until a map is loaded) ── */
+  #controls {
+    grid-row: 3;
+    background: linear-gradient(180deg, var(--bg1), var(--bg2));
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 12px 16px 14px;
+    display: flex; flex-direction: column; gap: 9px;
+    transition: opacity 0.2s ease;
+  }
+  #controls.disabled { opacity: 0.45; pointer-events: none; }
+
+  #seek-row { display: flex; align-items: center; gap: 10px; }
+  #time-cur, #time-dur { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text-dim); min-width: 40px; }
+  #time-cur { color: var(--text-bright); text-align: right; }
+
+  #seek {
+    -webkit-appearance: none; appearance: none;
+    flex: 1; height: 6px; border-radius: 999px; background: var(--bg3);
+    outline: none; cursor: pointer;
+  }
+  #seek::-webkit-slider-runnable-track { height: 6px; border-radius: 999px; background: var(--bg3); }
+  #seek::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%;
+    background: var(--accent); border: 2px solid #0a0c12; margin-top: -4.5px;
+    box-shadow: 0 0 0 3px rgba(232,193,74,0.18);
+  }
+  #seek::-moz-range-track { height: 6px; border-radius: 999px; background: var(--bg3); }
+  #seek::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: var(--accent); border: 2px solid #0a0c12; }
+
+  #btn-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .tbtn {
+    background: var(--bg3); border: 1px solid var(--line); color: var(--text-bright);
+    cursor: pointer; border-radius: 10px; padding: 8px 11px;
+    display: flex; align-items: center; justify-content: center; font-size: 0.88rem;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  }
+  .tbtn:hover { background: var(--bg2); border-color: var(--accent); }
+  .tbtn:active { transform: scale(0.94); }
+  #btn-play { width: 42px; height: 42px; font-size: 1rem; border-color: var(--kat); }
+  #btn-play:hover { background: rgba(63,182,207,0.14); }
+
+  .sv-toggle.active { background: var(--accent); border-color: var(--accent); color: #1a1400; }
+  .sv-toggle.active:hover { background: var(--accent); }
+
+  .ctl-group { display: flex; align-items: center; gap: 7px; }
+  .ctl-label { font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.04em; text-transform: uppercase; }
+  #speed-select {
+    background: var(--bg3); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 5px 7px; font-size: 0.76rem; font-family: 'JetBrains Mono', monospace; cursor: pointer;
+  }
+  #volume {
+    -webkit-appearance: none; appearance: none; width: 74px; height: 5px;
+    border-radius: 999px; background: var(--bg3); cursor: pointer;
+  }
+  #volume::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--text-dim); margin-top: -3.5px; }
+  .spacer { flex: 1; }
+
+  ::selection { background: rgba(232,193,74,0.35); }
+
+  #btn-test-play {
+    display: flex; align-items: center; gap: 6px;
+    background: linear-gradient(135deg, rgba(232,73,58,0.18), rgba(63,182,207,0.18));
+    border: 1px solid var(--line);
+    color: var(--text-bright); font-weight: 700; font-size: 0.76rem;
+    padding: 8px 13px; border-radius: 9px; cursor: pointer;
+    transition: border-color 0.15s ease, transform 0.1s ease;
+    white-space: nowrap;
+  }
+  #btn-test-play:hover:not(:disabled) { border-color: var(--accent); }
+  #btn-test-play:active:not(:disabled) { transform: scale(0.97); }
+  #btn-test-play:disabled { opacity: 0.35; cursor: default; }
+
+  /* Hide chrome entirely while actually playing — the stage (1fr row)
+     naturally expands to fill the freed space since these rows collapse. */
+  #app.testing #topbar,
+  #app.testing #controls { display: none; }
+
+  #test-hud {
+    position: absolute; top: 10px; left: 12px; right: 12px; z-index: 6;
+    display: none;
+    align-items: flex-start; justify-content: space-between;
+    pointer-events: none;
+  }
+  #app.testing #test-hud { display: flex; }
+  #test-hud-stats { display: flex; flex-direction: column; gap: 2px; }
+  #test-combo { display: flex; align-items: baseline; gap: 6px; }
+  #test-combo-n { font-family: 'JetBrains Mono', monospace; font-size: 1.6rem; font-weight: 700; color: var(--text-bright); text-shadow: 0 2px 8px rgba(0,0,0,0.6); }
+  #test-combo .unit { font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+  #test-acc { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--text-dim); text-shadow: 0 2px 6px rgba(0,0,0,0.6); }
+  #btn-test-exit {
+    pointer-events: auto;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(10,12,18,0.6); border: 1px solid var(--line); color: var(--text-bright);
+    font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  #btn-test-exit:hover { border-color: var(--don); background: rgba(232,73,58,0.15); }
+
+  #test-touch-zones {
+    position: absolute; inset: 0; z-index: 6;
+    display: none;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  #app.testing #test-touch-zones { display: grid; }
+  .drum-zone {
+    border: none; outline: none; -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 700; font-size: 0.7rem;
+    letter-spacing: 0.04em; color: rgba(255,255,255,0.28);
+    background: transparent; cursor: pointer; user-select: none;
+    transition: background 0.08s ease;
+  }
+  .drum-zone.kat { border-left: 1px solid rgba(255,255,255,0.05); border-right: 1px solid rgba(255,255,255,0.05); }
+  .drum-zone.kat:active, .drum-zone.kat.pressed { background: rgba(63,182,207,0.22); }
+  .drum-zone.don:active, .drum-zone.don.pressed { background: rgba(232,73,58,0.22); }
+  .drum-zone { flex-direction: column; gap: 4px; }
+  .drum-zone .key-hint {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; font-weight: 600;
+    color: rgba(255,255,255,0.4);
+    border: 1px solid rgba(255,255,255,0.18); border-radius: 4px;
+    padding: 1px 6px;
+  }
+
+  #test-results {
+    position: absolute; inset: 0; z-index: 15;
+    display: none;
+    align-items: center; justify-content: center;
+    background: rgba(5,7,11,0.86);
+  }
+  #test-results.show { display: flex; }
+  #test-results .panel {
+    background: linear-gradient(180deg, var(--bg1), var(--bg2));
+    border: 1px solid var(--line); border-radius: 16px;
+    padding: 26px 30px; text-align: center; min-width: 280px;
+  }
+  #test-results h2 { font-size: 1.1rem; color: var(--text-bright); margin-bottom: 10px; }
+  #test-results .acc-big { font-family: 'JetBrains Mono', monospace; font-size: 2.2rem; font-weight: 700; color: var(--accent); margin-bottom: 16px; }
+  #test-results .res-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+  #test-results .res-grid .n { display: block; font-family: 'JetBrains Mono', monospace; font-size: 1.05rem; font-weight: 700; color: var(--text-bright); }
+  #test-results .res-grid .l { display: block; font-size: 0.62rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+  #test-results .res-actions { display: flex; gap: 10px; justify-content: center; }
+  #test-results .res-actions .tbtn { padding: 9px 16px; }
+
+  #test-pause {
+    position: absolute; inset: 0; z-index: 16;
+    display: none;
+    align-items: center; justify-content: center;
+    background: rgba(5,7,11,0.86);
+  }
+  #test-pause.show { display: flex; }
+  #test-pause .panel {
+    background: linear-gradient(180deg, var(--bg1), var(--bg2));
+    border: 1px solid var(--line); border-radius: 16px;
+    padding: 26px 30px; text-align: center; min-width: 260px;
+  }
+  #test-pause h2 { font-size: 1.1rem; color: var(--text-bright); margin-bottom: 18px; }
+  #test-pause .res-actions { display: flex; flex-direction: column; gap: 10px; }
+  #test-pause .res-actions .tbtn { padding: 10px 18px; }
+
+  @media (max-width: 640px) {
+    #app { padding: 10px 10px 12px; gap: 8px; }
+    .brand .mark { font-size: 1.05rem; }
+    #meta-inline { display: none; }
+    #btn-row { justify-content: center; }
+    .ctl-label { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="topbar">
+    <div class="brand"><span class="mark">太鼓 Preview</span><span class="sub">osu!taiko .osz previewer</span></div>
+    <div id="meta-inline" class="empty">
+      <div class="title" id="m-title">No map loaded</div>
+      <div class="sub-line" id="m-sub"><span>Drop a .osz anywhere on the stage</span></div>
+    </div>
+    <div id="topbar-actions">
+      <div class="segmented" id="mode-toggle">
+        <button id="mode-single" class="active" type="button">Single</button>
+        <button id="mode-all" type="button">All diffs</button>
+      </div>
+      <select id="diff-select" disabled><option>No difficulties</option></select>
+      <button id="btn-test-play" type="button" disabled title="Play the map yourself">🎮 Test Play</button>
+      <button id="load-btn" type="button">📁 Load .osz</button>
+      <input type="file" id="file-input" accept=".osz">
+    </div>
+  </div>
+
+  <div id="stage-wrap">
+    <div id="stage-inner">
+      <div id="stage-bg"></div>
+      <canvas id="playfield"></canvas>
+      <div id="kiai-tag">KIAI</div>
+    </div>
+    <div id="drop-ring"></div>
+
+    <div id="empty-state">
+      <div class="glyph"><div class="kat"></div><div class="don"></div></div>
+      <h1>Drop an .osz here</h1>
+      <p>Load a beatmap package to watch its taiko chart scroll in sync with the song, right on this screen — nothing to install, nothing uploaded.</p>
+      <button class="browse-btn" id="browse-btn" type="button">Choose a file</button>
+      <div class="err" id="dz-error"></div>
+    </div>
+
+    <div id="loading-overlay">
+      <div class="spinner"></div>
+      <div class="msg" id="loading-msg">Reading package…</div>
+    </div>
+
+    <!-- ── Test Play HUD — only visible while actually playing the map ── -->
+    <div id="test-hud">
+      <div id="test-hud-stats">
+        <div id="test-combo"><span id="test-combo-n">0</span><span class="unit">combo</span></div>
+        <div id="test-acc">100.00%</div>
+      </div>
+      <button id="btn-test-exit" type="button" title="Pause (Esc)">⏸</button>
+    </div>
+
+    <div id="test-touch-zones">
+      <button class="drum-zone kat" data-code="KeyD">かKAT<span class="key-hint">D</span></button>
+      <button class="drum-zone don" data-code="KeyF">ドDON<span class="key-hint">F</span></button>
+      <button class="drum-zone don" data-code="KeyJ">ドDON<span class="key-hint">J</span></button>
+      <button class="drum-zone kat" data-code="KeyK">かKAT<span class="key-hint">K</span></button>
+    </div>
+
+    <div id="test-pause">
+      <div class="panel">
+        <h2>Paused</h2>
+        <div class="res-actions">
+          <button class="tbtn" id="btn-pause-continue" type="button">▶ Continue</button>
+          <button class="tbtn" id="btn-pause-retry" type="button">↺ Retry</button>
+          <button class="tbtn" id="btn-pause-quit" type="button">✕ Quit</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="test-results">
+      <div class="panel">
+        <h2 id="test-results-title">Cleared!</h2>
+        <div class="acc-big" id="res-acc">100.00%</div>
+        <div class="res-grid">
+          <div><span class="n" id="res-great">0</span><span class="l">Great</span></div>
+          <div><span class="n" id="res-good">0</span><span class="l">Good</span></div>
+          <div><span class="n" id="res-miss">0</span><span class="l">Miss</span></div>
+          <div><span class="n" id="res-combo">0</span><span class="l">Max combo</span></div>
+        </div>
+        <div class="res-actions">
+          <button class="tbtn" id="btn-test-retry" type="button">↺ Retry</button>
+          <button class="tbtn" id="btn-test-back" type="button">Back to preview</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="controls" class="disabled">
+    <div id="seek-row">
+      <span id="time-cur">0:00</span>
+      <input type="range" id="seek" min="0" max="1000" value="0" step="1">
+      <span id="time-dur">0:00</span>
+    </div>
+    <div id="btn-row">
+      <button class="tbtn" id="btn-restart" title="Restart">⏮</button>
+      <button class="tbtn" id="btn-back" title="Back 5s">«</button>
+      <button class="tbtn" id="btn-play" title="Play / Pause">▶</button>
+      <button class="tbtn" id="btn-fwd" title="Forward 5s">»</button>
+
+      <div class="ctl-group">
+        <span class="ctl-label">Speed</span>
+        <select id="speed-select">
+          <option value="0.5">0.5×</option>
+          <option value="0.75">0.75×</option>
+          <option value="1" selected>1×</option>
+          <option value="1.25">1.25×</option>
+          <option value="1.5">1.5×</option>
+          <option value="2">2×</option>
+        </select>
+      </div>
+
+      <div class="ctl-group">
+        <span class="ctl-label">Vol</span>
+        <input type="range" id="volume" min="0" max="1" step="0.01" value="0.8">
+      </div>
+
+      <div class="ctl-group">
+        <button class="tbtn sv-toggle" id="btn-constant-sv" type="button" title="Ignore green-line SV changes — scroll speed stays flat">Const SV</button>
+      </div>
+
+      <div class="ctl-group">
+        <span class="ctl-label">SV ×</span>
+        <input type="range" id="sv-mult" min="0.25" max="3" step="0.05" value="1">
+        <span class="ctl-label" id="sv-mult-label" style="min-width:34px;text-align:right;">1.00×</span>
+      </div>
+
+      <div class="spacer"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════
+//  TAIKO PLAYFIELD PHYSICS + RENDERING
+//  Note textures, lane hit position, and scroll-speed (SV) math match
+//  the reference storyboard editor's own preview exactly.
+// ══════════════════════════════════════════════════════════════════════
+
+const SKIN_HITCIRCLE = 'data:image/png;base64,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';
+const SKIN_OVERLAY    = 'data:image/png;base64,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';
+
+const HIT_X = 53;     // note hit position X, OSB space
+const VIEW  = { x0: -107, x1: 747 }; // OSB horizontal range shown
+
+const BASE_SPEED_PER_BPM = 245 / 60000 * 0.8;
+function getBaseSpeedForBPM(bpm) { return BASE_SPEED_PER_BPM * (bpm || 120); }
+
+const DON_RGB = [235, 74, 50];
+const KAT_RGB = [74, 144, 173];
+const LANE_ACCENTS = ['#e8c14a', '#3fb6cf', '#e8493a', '#8a92cc', '#6fbf73', '#c77dd1'];
+
+// ── .osu parsing ─────────────────────────────────────────────────────
+function parseOSU(text) {
+  const lines = text.replace(/\r/g, '').split('\n');
+  const result = {
+    audioFilename: 'audio.mp3',
+    bpm: 140,
+    firstBeat: 0,
+    timingPoints: [],
+    hitObjects: [],
+    title: '', artist: '', creator: '', version: '',
+    backgroundFile: '',
+    svPoints: [],
+    od: 5,
+  };
+  let section = '';
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith('//')) continue;
+    if (line.startsWith('[')) { section = line.slice(1, -1).toLowerCase(); continue; }
+    if (section === 'events') {
+      const bgMatch = line.match(/^0,0,"?([^",]+)"?/);
+      if (bgMatch) result.backgroundFile = bgMatch[1].trim();
+    }
+    if (section === 'general') {
+      if (line.startsWith('AudioFilename:')) result.audioFilename = line.split(':').slice(1).join(':').trim();
+    }
+    if (section === 'difficulty') {
+      if (line.startsWith('OverallDifficulty:')) {
+        const v = parseFloat(line.slice(19).trim());
+        if (!isNaN(v)) result.od = v;
+      }
+    }
+    if (section === 'metadata') {
+      if (line.startsWith('Title:') && !result.title) result.title = line.slice(6).trim();
+      if (line.startsWith('TitleUnicode:')) result.title = line.slice(13).trim() || result.title;
+      if (line.startsWith('Artist:') && !result.artist) result.artist = line.slice(7).trim();
+      if (line.startsWith('ArtistUnicode:')) result.artist = line.slice(14).trim() || result.artist;
+      if (line.startsWith('Creator:')) result.creator = line.slice(8).trim();
+      if (line.startsWith('Version:')) result.version = line.slice(8).trim();
+    }
+    if (section === 'timingpoints') {
+      const p = line.split(',');
+      if (p.length < 2) continue;
+      const uninherited = p.length > 6 ? parseInt(p[6]) === 1 : true;
+      const effects = p.length > 7 ? (parseInt(p[7]) || 0) : 0;
+      const isKiai = (effects & 1) !== 0;
+      const tp = { time: parseFloat(p[0]), beatLength: parseFloat(p[1]), uninherited, isKiai };
+      if (isNaN(tp.time) || isNaN(tp.beatLength)) continue;
+      result.timingPoints.push(tp);
+      if (uninherited && tp.beatLength > 0) {
+        if (result.firstBeat === 0 || tp.time < result.firstBeat) {
+          result.firstBeat = tp.time;
+          result.bpm = 60000 / tp.beatLength;
+        }
+      }
+      if (!uninherited && tp.beatLength < 0) {
+        result.svPoints.push({ time: Math.round(tp.time), sv: -100 / tp.beatLength });
+      }
+    }
+    if (section === 'hitobjects') {
+      const p = line.split(',');
+      if (p.length < 5) continue;
+      const hitSound = parseInt(p[4]) || 0;
+      const isKat = (hitSound & 2) !== 0 || (hitSound & 8) !== 0;
+      const isBig = (hitSound & 4) !== 0;
+      const t = parseInt(p[2]);
+      if (isNaN(t)) continue;
+      result.hitObjects.push({ time: t, type: isKat ? (isBig ? 'bigkat' : 'kat') : (isBig ? 'bigdon' : 'don') });
+    }
+  }
+  result.hitObjects.sort((a, b) => a.time - b.time);
+  result.duration = result.hitObjects.length ? result.hitObjects[result.hitObjects.length - 1].time + 3000 : 10000;
+
+  result.uninheritedPoints = result.timingPoints
+    .filter(tp => tp.uninherited && tp.beatLength > 0)
+    .map(tp => ({ time: tp.time, beatLength: tp.beatLength, bpm: 60000 / tp.beatLength }))
+    .sort((a, b) => a.time - b.time);
+
+  result.svPoints.sort((a, b) => a.time - b.time);
+  if (result.svPoints.length === 0 || result.svPoints[0].time > (result.firstBeat || 0)) {
+    result.svPoints.unshift({ time: result.firstBeat || 0, sv: 1.0 });
+  }
+
+  // kiai ranges — contiguous stretches where the active timing point has the kiai flag set
+  result.kiaiRanges = [];
+  {
+    const pts = result.timingPoints.slice().sort((a, b) => a.time - b.time);
+    let curStart = null;
+    for (let i = 0; i < pts.length; i++) {
+      if (pts[i].isKiai && curStart === null) curStart = pts[i].time;
+      if (!pts[i].isKiai && curStart !== null) { result.kiaiRanges.push([curStart, pts[i].time]); curStart = null; }
+    }
+    if (curStart !== null) result.kiaiRanges.push([curStart, result.duration]);
+  }
+
+  return result;
+}
+
+// ── Physics: BPM / scroll-speed lookups by map time ───────────────────
+function getBPMAt(mapData, t) {
+  let bpm = mapData.bpm;
+  for (const tp of mapData.uninheritedPoints) {
+    if (tp.time <= t) bpm = tp.bpm; else break;
+  }
+  return bpm;
+}
+function getSVAt(mapData, t) {
+  let sv = 1.0;
+  if (!S.constantSV) {
+    for (const p of mapData.svPoints) {
+      if (p.time <= t) sv = p.sv; else break;
+    }
+  }
+  return sv * S.svMultiplier;
+}
+function getBeatSegmentAt(mapData, t) {
+  const pts = mapData.uninheritedPoints;
+  if (!pts.length) return { anchor: mapData.firstBeat || 0, beatDur: 60000 / mapData.bpm };
+  let seg = pts[0];
+  for (const p of pts) { if (p.time <= t) seg = p; else break; }
+  return { anchor: seg.time, beatDur: seg.beatLength };
+}
+// x(hitTime, currentTime) — identical formula to the reference tool's fast path.
+// Deliberately NOT clamped once currentTime passes hitTime: a note that
+// wasn't hit needs to keep sliding past the hit line and off-screen, same
+// as it would in the real game, instead of freezing in place.
+function getNoteX(mapData, hitTime, currentTime) {
+  const sv = getSVAt(mapData, hitTime);
+  const bs = getBaseSpeedForBPM(getBPMAt(mapData, hitTime));
+  return HIT_X + (hitTime - currentTime) * sv * bs;
+}
+
+function lowerBound(arr, t) {
+  let lo = 0, hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (arr[mid].time < t) lo = mid + 1; else hi = mid;
+  }
+  return lo;
+}
+
+// ── Test Play hit windows ──────────────────────────────────────────
+// Approximate osu!taiko-style judging scaled by Overall Difficulty. These
+// are tuned to feel right for casual practice — not a byte-exact port of
+// ranked osu!'s internal hit windows.
+function greatWindowMs(od) { return 50 - 3 * (od == null ? 5 : od); }   // OD0: 50ms · OD10: 20ms
+function goodWindowMs(od) {
+  const o = od == null ? 5 : od;
+  // Real osu!taiko's OK window is piecewise around OD5, not a flat line —
+  // OD0: 120ms · OD5: 80ms · OD10: 50ms.
+  return o <= 5 ? 120 - 8 * o : 110 - 6 * o;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════════════════
+const S = {
+  zip: null,
+  diffs: [],            // [{path, mapData}], ascending by note count
+  activeDiff: null,      // the diff shown in the selector / used for meta+kiai
+  mapData: null,
+  mode: 'single',        // 'single' | 'all'
+  constantSV: false,     // ignore green-line SV, scroll flat at 1.0×
+  svMultiplier: 1,       // global scroll-speed multiplier applied on top
+  audioCtx: null,
+  audioBuffer: null,
+  audioSource: null,
+  gainNode: null,
+  isPlaying: false,
+  currentTime: 0,
+  duration: 10000,
+  playStartRealTime: 0,
+  playStartMapTime: 0,
+  playbackRate: 1,
+  seeking: false,
+  // Test Play
+  testPlay: false,
+  testNotes: null,
+  testStats: null,
+  testMissPtr: 0,
+  judgePopups: [],
+  heldKeys: {},        // key -> timestamp of last keydown, for big-note double-hit detection
+};
+
+// ── Canvas / coordinate mapping ────────────────────────────────────────
+const canvas = document.getElementById('playfield');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false; // note sprites are simple flat circles — skip the smoothing cost
+
+let _bgGradient = null; // rebuilt only when canvas size changes, not every frame
+
+function activeLaneCount() {
+  return (S.mode === 'all' && S.diffs.length > 1) ? S.diffs.length : 1;
+}
+
+const STAGE_ASPECT = 16 / 9; // matches the VIEW OSB coordinate space (854 wide against a 480-tall field)
+const stageInner = document.getElementById('stage-inner');
+
+function syncCanvasSize() {
+  const wrap = document.getElementById('stage-wrap');
+  const rawDpr = window.devicePixelRatio || 1;
+  const ww = wrap.clientWidth, wh = wrap.clientHeight;
+
+  // Letterbox #stage-inner to a locked 16:9 box centered in #stage-wrap.
+  // Without this, stage-inner (and the canvas filling it) would just take
+  // on whatever aspect ratio the surrounding page layout happens to leave
+  // available, which desyncs the X-axis note spacing (mapped from a fixed
+  // 854-wide OSB space) from the Y-axis note size (derived from stage
+  // height) — the note-packing issue this fixes.
+  let iw, ih;
+  if (ww / wh > STAGE_ASPECT) {
+    ih = wh;
+    iw = wh * STAGE_ASPECT;
+  } else {
+    iw = ww;
+    ih = ww / STAGE_ASPECT;
+  }
+  iw = Math.max(1, Math.round(iw));
+  ih = Math.max(1, Math.round(ih));
+  const left = Math.round((ww - iw) / 2), top = Math.round((wh - ih) / 2);
+  if (stageInner.style.width !== iw + 'px') stageInner.style.width = iw + 'px';
+  if (stageInner.style.height !== ih + 'px') stageInner.style.height = ih + 'px';
+  if (stageInner.style.left !== left + 'px') stageInner.style.left = left + 'px';
+  if (stageInner.style.top !== top + 'px') stageInner.style.top = top + 'px';
+
+  // More stacked lanes = more per-frame drawing, so scale resolution down as
+  // lane count grows. This is what actually explains "fullscreen is choppy,
+  // split-screen is smooth" — iPad Safari's canvas cost scales with total
+  // output pixels, and fullscreen at devicePixelRatio 2 with 8 lanes is a
+  // lot more pixels to fill than the same layout in a shrunk split-screen pane.
+  const lanes = activeLaneCount();
+  let dpr = Math.min(rawDpr, 2);
+  if (lanes > 3) dpr = Math.min(dpr, 1.5);
+  if (lanes > 6) dpr = Math.min(dpr, 1);
+  const targetW = Math.round(iw * dpr), targetH = Math.round(ih * dpr);
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    canvas.width = targetW;
+    canvas.height = targetH;
+    _spriteCache.clear();
+    _bgGradient = null;
+  }
+}
+function xToCanvas(ox) { return (ox - VIEW.x0) * (canvas.width / (VIEW.x1 - VIEW.x0)); }
+
+// ── Note sprite baking (tinted circle + untinted overlay ring) ────────
+const hitcircleImg = new Image();
+const overlayImg = new Image();
+let imgsReady = 0;
+hitcircleImg.onload = () => { imgsReady++; };
+overlayImg.onload = () => { imgsReady++; };
+hitcircleImg.src = SKIN_HITCIRCLE;
+overlayImg.src = SKIN_OVERLAY;
+
+const _spriteCache = new Map();
+function getTintedSprite(size, isKat) {
+  const osz = Math.max(2, Math.ceil(size));
+  const key = (isKat ? 'k' : 'd') + osz;
+  let spr = _spriteCache.get(key);
+  if (spr) return spr;
+  const [r, g, b] = isKat ? KAT_RGB : DON_RGB;
+  spr = document.createElement('canvas');
+  spr.width = osz; spr.height = osz;
+  const sc = spr.getContext('2d');
+  sc.fillStyle = `rgb(${r},${g},${b})`;
+  sc.fillRect(0, 0, osz, osz);
+  sc.globalCompositeOperation = 'destination-in';
+  sc.drawImage(hitcircleImg, 0, 0, osz, osz);
+  _spriteCache.set(key, spr);
+  return spr;
+}
+
+// ── Lane band renderer — draws one difficulty's strip. Used once for
+//    "Single" mode (one band filling the stage) and N times stacked
+//    for "All diffs" mode. The x-axis mapping (xToCanvas) and the hit
+//    line are shared across every band so everything stays aligned to
+//    the same "now" instant.
+// ══════════════════════════════════════════════════════════════════════
+function renderBand(mapData, ct, top, height, label, accent, sizeRef, previewWindow) {
+  const cw = canvas.width;
+  const yCenter = top + height / 2;
+  // note/drum sizes are derived from sizeRef (the full stage height), never
+  // from this band's own height, so notes stay the same size no matter how
+  // many difficulties are stacked at once.
+  const ref = sizeRef || height;
+  const drumR = ref * 0.115;
+  const bigR = ref * 0.145;
+  const normR = ref * 0.091;
+  const hitCx = xToCanvas(HIT_X);
+
+  // band background
+  ctx.fillStyle = 'rgba(20,30,50,0.5)';
+  ctx.fillRect(0, top, cw, height);
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, top + 0.5); ctx.lineTo(cw, top + 0.5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, top + height - 0.5); ctx.lineTo(cw, top + height - 0.5); ctx.stroke();
+
+  // barlines (this band's own BPM/SV) — skipped on very thin bands, where
+  // they're barely visible anyway and just add draw calls
+  const { anchor, beatDur } = getBeatSegmentAt(mapData, ct);
+  const mDur = beatDur * 4;
+  if (mDur > 0 && height > 22) {
+    const startMeasure = Math.floor((ct - 3000 - anchor) / mDur);
+    const endMeasure = Math.ceil((ct + previewWindow - anchor) / mDur);
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.setLineDash([3, 3]);
+    for (let m = startMeasure; m <= endMeasure; m++) {
+      const hitT = anchor + m * mDur;
+      const x = getNoteX(mapData, hitT, ct);
+      if (x < VIEW.x0 - 20 || x > VIEW.x1 + 20) continue;
+      const cx = Math.round(xToCanvas(x)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(cx, top + 2); ctx.lineTo(cx, top + height - 2); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+
+  // drum circle
+  ctx.beginPath();
+  ctx.arc(hitCx, yCenter, drumR, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(hitCx, yCenter, drumR * 0.6, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(50,80,140,0.4)';
+  ctx.fill();
+
+  // hit flashes
+  const isActiveTestLane = S.testPlay && mapData === S.mapData;
+  const hitObjects = isActiveTestLane ? S.testNotes : mapData.hitObjects;
+  {
+    const flashStart = lowerBound(hitObjects, ct - 140);
+    const flashEnd = lowerBound(hitObjects, ct);
+    for (let i = flashStart; i < flashEnd; i++) {
+      const note = hitObjects[i];
+      const age = ct - note.time;
+      if (age < 0 || age > 140) continue;
+      const alpha = 1 - age / 140;
+      const isKat = note.type.indexOf('kat') !== -1;
+      const [r, g, b] = isKat ? KAT_RGB : DON_RGB;
+      const rad = drumR * (1 + age / 140 * 0.55);
+      ctx.beginPath();
+      ctx.arc(hitCx, yCenter, rad, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${r},${g},${b},${alpha * 0.9})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+  }
+
+  // notes — during test play, a note that wasn't successfully hit (still
+  // unjudged, or already flagged as a miss) keeps rendering and sliding
+  // past the hit line until it scrolls off-screen, same as the real game.
+  // Only a genuinely-hit note (great/good) disappears the instant it's judged.
+  const nStart = isActiveTestLane ? lowerBound(hitObjects, ct - previewWindow) : lowerBound(hitObjects, ct);
+  const nEnd = lowerBound(hitObjects, ct + previewWindow);
+  const imagesReady = imgsReady >= 2;
+  for (let i = nEnd - 1; i >= nStart; i--) {
+    const note = hitObjects[i];
+    if (note.judged && note.result !== 'miss') continue;
+    const x = getNoteX(mapData, note.time, ct);
+    if (x < VIEW.x0 - 50 || x > VIEW.x1 + 50) continue;
+    const cx = xToCanvas(x);
+    const isBig = note.type.indexOf('big') === 0;
+    const isKat = note.type.indexOf('kat') !== -1;
+    const r = isBig ? bigR : normR;
+
+    if (imagesReady) {
+      const spr = getTintedSprite(r * 2 + 2, isKat);
+      ctx.drawImage(spr, 0, 0, spr.width, spr.height, cx - r, yCenter - r, r * 2, r * 2);
+      ctx.drawImage(overlayImg, cx - r, yCenter - r, r * 2, r * 2);
+    } else {
+      const [rr, gg, bb] = isKat ? KAT_RGB : DON_RGB;
+      ctx.beginPath();
+      ctx.arc(cx, yCenter, r, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgb(${rr},${gg},${bb})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, yCenter, r * 0.85, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${rr},${gg},${bb},0.75)`;
+      ctx.fill();
+    }
+  }
+
+  // label
+  if (label) {
+    ctx.font = `${Math.max(10, Math.min(13, height * 0.16))}px 'JetBrains Mono', monospace`;
+    ctx.fillStyle = accent || 'rgba(255,255,255,0.55)';
+    ctx.fillRect(6, top + 6, 3, Math.min(18, height * 0.3));
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillText(label, 14, top + 6 + Math.min(18, height * 0.3) * 0.5 + 4);
+  }
+}
+
+// ── Main render — dispatches to one or many bands ──────────────────
+function render() {
+  syncCanvasSize();
+  const cw = canvas.width, ch = canvas.height;
+  ctx.clearRect(0, 0, cw, ch);
+  if (!S.mapData) return;
+
+  const ct = S.currentTime;
+
+  if (!_bgGradient) {
+    _bgGradient = ctx.createLinearGradient(0, 0, 0, ch);
+    _bgGradient.addColorStop(0, '#0c0f16');
+    _bgGradient.addColorStop(1, '#05070a');
+  }
+  ctx.fillStyle = _bgGradient;
+  ctx.fillRect(0, 0, cw, ch);
+
+  // Fewer visible notes-ahead when stacking many lanes at once — cuts the
+  // total per-frame draw calls roughly in proportion to lane count, since
+  // each lane draws its own set of upcoming notes.
+  const lanes = S.mode === 'all' ? S.diffs.length : 1;
+  const previewWindow = lanes > 6 ? 6000 : lanes > 3 ? 8000 : 12000;
+
+  if (S.mode === 'all' && S.diffs.length > 1) {
+    const n = S.diffs.length;
+    const gap = 3;
+    const bandH = (ch - gap * (n - 1)) / n;
+    S.diffs.forEach((d, i) => {
+      const top = i * (bandH + gap);
+      const label = d.mapData.version || ('Diff ' + (i + 1));
+      renderBand(d.mapData, ct, top, bandH, label, LANE_ACCENTS[i % LANE_ACCENTS.length], ch, previewWindow);
+    });
+  } else {
+    renderBand(S.mapData, ct, 0, ch, null, null, ch, previewWindow);
+  }
+
+  // one continuous hit line spanning the whole stage — shared "now" marker
+  const hitCx = xToCanvas(HIT_X);
+  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(hitCx, 0); ctx.lineTo(hitCx, ch); ctx.stroke();
+
+  if (S.testPlay) drawJudgePopups(hitCx, ch / 2);
+
+  updateKiaiTag(ct);
+}
+
+function drawJudgePopups(hitCx, hitCy) {
+  const now = performance.now();
+  const life = 550;
+  S.judgePopups = S.judgePopups.filter(p => now - p.spawnTime < life);
+  for (const p of S.judgePopups) {
+    const age = now - p.spawnTime;
+    const t = age / life;
+    const alpha = 1 - t;
+    const yOff = -t * 34;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, alpha);
+    ctx.font = `700 ${Math.round(canvas.height * 0.055)}px 'Zen Kaku Gothic New', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = p.color;
+    ctx.fillText(p.text, hitCx, hitCy - canvas.height * 0.16 + yOff);
+    ctx.restore();
+  }
+}
+
+function updateKiaiTag(ct) {
+  const tag = document.getElementById('kiai-tag');
+  const md = S.activeDiff ? S.activeDiff.mapData : S.mapData;
+  if (!md || !md.kiaiRanges || !md.kiaiRanges.length) { tag.classList.remove('show'); return; }
+  let active = false;
+  for (const rg of md.kiaiRanges) { if (ct >= rg[0] && ct < rg[1]) { active = true; break; } }
+  tag.classList.toggle('show', active);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  PLAYBACK ENGINE
+// ══════════════════════════════════════════════════════════════════════
+function fmtTime(ms) {
+  if (!isFinite(ms) || ms < 0) ms = 0;
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+function stopAudioSource() {
+  if (S.audioSource) {
+    try { S.audioSource.onended = null; S.audioSource.stop(); } catch (e) {}
+    S.audioSource = null;
+  }
+}
+
+function startPlayback() {
+  if (!S.mapData) return;
+  if (S.isPlaying) return;
+  S.isPlaying = true;
+  document.getElementById('btn-play').textContent = '⏸';
+  S.playStartRealTime = performance.now();
+  S.playStartMapTime = S.currentTime;
+
+  if (S.audioCtx && S.audioBuffer) {
+    if (S.audioCtx.state === 'suspended') S.audioCtx.resume();
+    stopAudioSource();
+    const src = S.audioCtx.createBufferSource();
+    src.buffer = S.audioBuffer;
+    src.playbackRate.value = S.playbackRate;
+    src.connect(S.gainNode);
+    const offsetSec = S.currentTime / 1000;
+    if (offsetSec < src.buffer.duration) {
+      src.start(0, offsetSec);
+      S.audioSource = src;
+    }
+  }
+  requestAnimationFrame(playbackLoop);
+}
+
+function pausePlayback() {
+  S.isPlaying = false;
+  document.getElementById('btn-play').textContent = '▶';
+  stopAudioSource();
+}
+
+function seekTo(ms) {
+  S.currentTime = Math.max(0, Math.min(ms, S.duration));
+  S.playStartMapTime = S.currentTime;
+  S.playStartRealTime = performance.now();
+  if (S.isPlaying && S.audioCtx && S.audioBuffer) {
+    stopAudioSource();
+    const src = S.audioCtx.createBufferSource();
+    src.buffer = S.audioBuffer;
+    src.playbackRate.value = S.playbackRate;
+    src.connect(S.gainNode);
+    const offsetSec = S.currentTime / 1000;
+    if (offsetSec < src.buffer.duration) {
+      src.start(0, offsetSec);
+      S.audioSource = src;
+    }
+  }
+  updateTimeUI();
+  render();
+}
+
+function setPlaybackRate(rate) {
+  if (S.isPlaying) {
+    const elapsed = (performance.now() - S.playStartRealTime) * S.playbackRate;
+    S.currentTime = S.playStartMapTime + elapsed;
+    S.playStartMapTime = S.currentTime;
+    S.playStartRealTime = performance.now();
+  }
+  S.playbackRate = rate;
+  if (S.audioSource) S.audioSource.playbackRate.value = rate;
+}
+
+function playbackLoop(now) {
+  if (!S.isPlaying) return;
+  const elapsed = (now - S.playStartRealTime) * S.playbackRate;
+  S.currentTime = S.playStartMapTime + elapsed;
+  if (S.currentTime >= S.duration) {
+    S.currentTime = S.duration;
+    pausePlayback();
+    if (S.testPlay) finishTestPlay(true);
+  }
+  if (S.testPlay) advanceTestMisses();
+  updateTimeUI();
+  render();
+  if (S.isPlaying) requestAnimationFrame(playbackLoop);
+}
+
+function updateTimeUI() {
+  document.getElementById('time-cur').textContent = fmtTime(S.currentTime);
+  if (!S.seeking) {
+    document.getElementById('seek').value = String(Math.round(S.currentTime));
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  LOADING .osz — everything happens in place, inside the same screen
+// ══════════════════════════════════════════════════════════════════════
+const stageWrap = document.getElementById('stage-wrap');
+const fileInput = document.getElementById('file-input');
+const dzError = document.getElementById('dz-error');
+const emptyState = document.getElementById('empty-state');
+const loadingOverlay = document.getElementById('loading-overlay');
+const loadingMsg = document.getElementById('loading-msg');
+const controlsEl = document.getElementById('controls');
+const metaInline = document.getElementById('meta-inline');
+
+document.getElementById('load-btn').addEventListener('click', () => fileInput.click());
+document.getElementById('browse-btn').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+['dragenter', 'dragover'].forEach(evt => {
+  stageWrap.addEventListener(evt, (e) => { e.preventDefault(); stageWrap.classList.add('drag'); });
+});
+['dragleave', 'drop'].forEach(evt => {
+  stageWrap.addEventListener(evt, (e) => { e.preventDefault(); stageWrap.classList.remove('drag'); });
+});
+stageWrap.addEventListener('drop', (e) => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+document.addEventListener('dragover', (e) => e.preventDefault());
+document.addEventListener('drop', (e) => e.preventDefault());
+
+function showError(msg) {
+  dzError.textContent = msg;
+  dzError.style.display = 'block';
+}
+
+async function handleFile(file) {
+  dzError.style.display = 'none';
+  if (!/\.osz$/i.test(file.name)) {
+    showError('That doesn\'t look like an .osz file — please pick an osu! beatmap package.');
+    return;
+  }
+  loadingOverlay.classList.add('show');
+  loadingMsg.textContent = 'Reading package…';
+  if (S.testPlay) exitTestPlay();
+  pausePlayback();
+
+  try {
+    const zip = await JSZip.loadAsync(file);
+    const osuPaths = Object.keys(zip.files).filter(f => /\.osu$/i.test(f) && !zip.files[f].dir);
+    if (osuPaths.length === 0) throw new Error('No .osu difficulty files found inside this package.');
+
+    loadingMsg.textContent = 'Parsing difficulties…';
+    const diffs = [];
+    for (const path of osuPaths) {
+      const text = await zip.files[path].async('string');
+      diffs.push({ path, mapData: parseOSU(text) });
+    }
+    diffs.sort((a, b) => a.mapData.hitObjects.length - b.mapData.hitObjects.length);
+
+    loadingMsg.textContent = 'Decoding audio…';
+    S.audioBuffer = null;
+    S.zip = zip;
+    S.diffs = diffs;
+    await loadAudioFromZip(zip, diffs[diffs.length - 1].mapData);
+
+    loadingMsg.textContent = 'Building preview…';
+    populateDiffSelect(diffs);
+    document.getElementById('diff-select').disabled = false;
+    emptyState.style.display = 'none';
+    controlsEl.classList.remove('disabled');
+    await selectDiff(diffs[diffs.length - 1].path);
+
+    loadingOverlay.classList.remove('show');
+  } catch (err) {
+    console.error(err);
+    loadingOverlay.classList.remove('show');
+    showError('Couldn\'t load that file: ' + (err && err.message ? err.message : err));
+  }
+}
+
+async function loadAudioFromZip(zip, mapDataHint) {
+  try {
+    if (!S.audioCtx) {
+      S.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      S.gainNode = S.audioCtx.createGain();
+      S.gainNode.gain.value = parseFloat(document.getElementById('volume').value);
+      S.gainNode.connect(S.audioCtx.destination);
+    }
+    let audioPath = null;
+    if (mapDataHint && mapDataHint.audioFilename) {
+      const want = mapDataHint.audioFilename.toLowerCase();
+      audioPath = Object.keys(zip.files).find(f => f.toLowerCase().endsWith(want));
+    }
+    if (!audioPath) {
+      audioPath = Object.keys(zip.files).find(f => /\.(mp3|ogg|wav)$/i.test(f));
+    }
+    if (audioPath) {
+      const buf = await zip.files[audioPath].async('arraybuffer');
+      S.audioBuffer = await S.audioCtx.decodeAudioData(buf.slice(0));
+    }
+  } catch (e) {
+    console.warn('Audio decode failed:', e);
+  }
+}
+
+function populateDiffSelect(diffs) {
+  const sel = document.getElementById('diff-select');
+  sel.innerHTML = '';
+  for (const d of diffs) {
+    const opt = document.createElement('option');
+    opt.value = d.path;
+    opt.textContent = (d.mapData.version || d.path.split('/').pop()) + ' · ' + d.mapData.hitObjects.length;
+    sel.appendChild(opt);
+  }
+  sel.onchange = () => selectDiff(sel.value);
+}
+
+function computeOverallDuration() {
+  let dur = 0;
+  for (const d of S.diffs) dur = Math.max(dur, d.mapData.duration);
+  if (S.audioBuffer) dur = Math.max(dur, S.audioBuffer.duration * 1000 + 500);
+  return dur;
+}
+
+async function selectDiff(path) {
+  const entry = S.diffs.find(d => d.path === path);
+  if (!entry) return;
+  if (S.testPlay) exitTestPlay();
+  const wasPlaying = S.isPlaying;
+  pausePlayback();
+  S.activeDiff = entry;
+  S.mapData = entry.mapData;
+  S.duration = computeOverallDuration();
+  S.currentTime = 0;
+  document.getElementById('diff-select').value = path;
+
+  metaInline.classList.remove('empty');
+  document.getElementById('m-title').textContent = (entry.mapData.title || 'Untitled') + (entry.mapData.artist ? ' — ' + entry.mapData.artist : '');
+  document.getElementById('m-sub').innerHTML =
+    '<span>♪ <b>' + Math.round(entry.mapData.bpm) + '</b> BPM</span>' +
+    '<span>● <b>' + entry.mapData.hitObjects.length + '</b> notes</span>' +
+    (entry.mapData.creator ? '<span>✎ <b>' + entry.mapData.creator + '</b></span>' : '');
+
+  document.getElementById('seek').max = String(Math.round(S.duration));
+  document.getElementById('time-dur').textContent = fmtTime(S.duration);
+  document.getElementById('btn-test-play').disabled = (S.mode !== 'single');
+
+  await setBackground(entry.mapData.backgroundFile);
+
+  updateTimeUI();
+  render();
+  if (wasPlaying) startPlayback();
+}
+
+async function setBackground(bgFile) {
+  const bgEl = document.getElementById('stage-bg');
+  bgEl.style.backgroundImage = 'none';
+  if (!bgFile || !S.zip) return;
+  const want = bgFile.toLowerCase();
+  const path = Object.keys(S.zip.files).find(f => f.toLowerCase().endsWith(want));
+  if (!path) return;
+  try {
+    const blob = await S.zip.files[path].async('blob');
+    const dataUrl = await bakeBlurredBackground(blob);
+    if (dataUrl) bgEl.style.backgroundImage = `url("${dataUrl}")`;
+  } catch (e) { /* ignore */ }
+}
+
+// Bakes a blurred, darkened, tiny copy of the background art ONE TIME and
+// hands back a small data URL. The stage then just shows that static bitmap
+// stretched with plain CSS background-size:cover — a cheap image scale, not
+// a live filter. This is what actually fixed the fps drop: a running CSS
+// blur filter on a full-size layer gets re-composited (and re-paid for)
+// every time anything above it repaints, and its cost scales with how much
+// screen area it covers — exactly the "fps tracks resolution" symptom.
+async function bakeBlurredBackground(blob) {
+  let img;
+  let tempUrl = null;
+  try {
+    img = await createImageBitmap(blob);
+  } catch (e) {
+    img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      tempUrl = URL.createObjectURL(blob);
+      el.src = tempUrl;
+    });
+  }
+  const iw = img.width || img.naturalWidth || 1;
+  const ih = img.height || img.naturalHeight || 1;
+  const targetW = 48;
+  const targetH = Math.max(1, Math.round(targetW * (ih / iw)));
+  const off = document.createElement('canvas');
+  off.width = targetW; off.height = targetH;
+  const octx = off.getContext('2d');
+  // A small extra blur softens downscale artifacts; cheap because it only
+  // ever runs once, on a 48px-wide canvas.
+  octx.filter = 'blur(2px) brightness(0.55) saturate(1.05)';
+  octx.drawImage(img, 0, 0, targetW, targetH);
+  if (img.close) img.close();
+  if (tempUrl) URL.revokeObjectURL(tempUrl);
+  return off.toDataURL('image/jpeg', 0.7);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  MODE TOGGLE — Single vs All-diffs stacked view
+// ══════════════════════════════════════════════════════════════════════
+const modeSingleBtn = document.getElementById('mode-single');
+const modeAllBtn = document.getElementById('mode-all');
+function setMode(mode) {
+  if (S.testPlay) exitTestPlay();
+  S.mode = mode;
+  modeSingleBtn.classList.toggle('active', mode === 'single');
+  modeAllBtn.classList.toggle('active', mode === 'all');
+  document.getElementById('btn-test-play').disabled = !(mode === 'single' && S.mapData);
+  render();
+}
+modeSingleBtn.addEventListener('click', () => setMode('single'));
+modeAllBtn.addEventListener('click', () => setMode('all'));
+
+// ══════════════════════════════════════════════════════════════════════
+//  SV OPTIONS — constant-SV mode + global multiplier
+// ══════════════════════════════════════════════════════════════════════
+const btnConstantSV = document.getElementById('btn-constant-sv');
+const svMultInput = document.getElementById('sv-mult');
+const svMultLabel = document.getElementById('sv-mult-label');
+
+btnConstantSV.addEventListener('click', () => {
+  S.constantSV = !S.constantSV;
+  btnConstantSV.classList.toggle('active', S.constantSV);
+  render();
+});
+svMultInput.addEventListener('input', () => {
+  S.svMultiplier = parseFloat(svMultInput.value);
+  svMultLabel.textContent = S.svMultiplier.toFixed(2) + '×';
+  render();
+});
+
+// ══════════════════════════════════════════════════════════════════════
+//  TEST PLAY — actually play the current single difficulty yourself.
+//  D/F = left kat/don, J/K = right don/kat (osu!taiko's default layout),
+//  plus on-screen drum zones for touch. Transport controls are hidden
+//  entirely while playing; a small HUD (combo/accuracy + exit) replaces
+//  them, matching how the real game hides its editor chrome during play.
+// ══════════════════════════════════════════════════════════════════════
+const KEY_COLOR = { d: 'kat', f: 'don', j: 'don', k: 'kat' };
+// Physical-position map (KeyboardEvent.code) — used as the primary lookup so
+// non-QWERTY layouts (Dvorak, AZERTY, etc.) still map the D/F/J/K *positions*
+// correctly even though e.key would report different characters there.
+const CODE_COLOR = { KeyD: 'kat', KeyF: 'don', KeyJ: 'don', KeyK: 'kat' };
+const CODE_PAIR = { KeyD: 'KeyK', KeyK: 'KeyD', KeyF: 'KeyJ', KeyJ: 'KeyF' };
+const appEl = document.getElementById('app');
+const testResultsEl = document.getElementById('test-results');
+
+function startTestPlay() {
+  if (S.mode !== 'single' || !S.mapData) return;
+  pausePlayback();
+  S.testNotes = S.mapData.hitObjects.map(n => ({ time: n.time, type: n.type, judged: false, result: null }));
+  S.testStats = { great: 0, good: 0, miss: 0, combo: 0, maxCombo: 0, score: 0 };
+  S.testMissPtr = 0;
+  S.judgePopups = [];
+  S.heldKeys = {};
+  S.testPlay = true;
+  testResultsEl.classList.remove('show');
+  appEl.classList.add('testing');
+  updateTestHUD();
+  S.currentTime = 0;
+  render();
+  startPlayback();
+}
+
+function exitTestPlay() {
+  pausePlayback();
+  S.testPlay = false;
+  appEl.classList.remove('testing');
+  testResultsEl.classList.remove('show');
+  render();
+}
+
+function finishTestPlay(reachedEnd) {
+  pausePlayback();
+  appEl.classList.remove('testing');
+  const st = S.testStats;
+  const totalJudged = st.great + st.good + st.miss;
+  const acc = totalJudged ? ((st.great + st.good * 0.5) / totalJudged * 100) : 100;
+  document.getElementById('test-results-title').textContent = reachedEnd ? 'Cleared!' : 'Stopped';
+  document.getElementById('res-acc').textContent = acc.toFixed(2) + '%';
+  document.getElementById('res-great').textContent = st.great;
+  document.getElementById('res-good').textContent = st.good;
+  document.getElementById('res-miss').textContent = st.miss;
+  document.getElementById('res-combo').textContent = st.maxCombo;
+  testResultsEl.classList.add('show');
+  S.testPlay = false;
+  render();
+}
+
+// ── Pause menu — Continue/Retry/Quit, distinct from finishTestPlay (which
+// shows the results screen). Pausing keeps S.testPlay true and all note/
+// judgement state intact so Continue can resume exactly where it left off.
+const testPauseEl = document.getElementById('test-pause');
+function openPauseMenu() {
+  if (!S.testPlay || testPauseEl.classList.contains('show')) return;
+  pausePlayback();
+  testPauseEl.classList.add('show');
+}
+function closePauseMenu() {
+  testPauseEl.classList.remove('show');
+  if (S.testPlay) startPlayback();
+}
+function quitTestPlay() {
+  testPauseEl.classList.remove('show');
+  pausePlayback();
+  S.testPlay = false;
+  appEl.classList.remove('testing');
+  testResultsEl.classList.remove('show');
+  render();
+  // Hand control back to the song select screen if we're embedded in it.
+  if (window.parent !== window) window.parent.postMessage({ type: 'taiko-quit' }, '*');
+}
+document.getElementById('btn-pause-continue').addEventListener('click', closePauseMenu);
+document.getElementById('btn-pause-retry').addEventListener('click', () => { testPauseEl.classList.remove('show'); startTestPlay(); });
+document.getElementById('btn-pause-quit').addEventListener('click', quitTestPlay);
+
+function advanceTestMisses() {
+  const notes = S.testNotes;
+  if (!notes) return;
+  const goodW = goodWindowMs(S.mapData.od);
+  const ct = S.currentTime;
+  while (S.testMissPtr < notes.length) {
+    const n = notes[S.testMissPtr];
+    if (n.time + goodW >= ct) break;
+    if (!n.judged) {
+      n.judged = true;
+      n.result = 'miss';
+      S.testStats.miss++;
+      S.testStats.combo = 0;
+      spawnJudgePopup('MISS', 'var(--text-dim)');
+      updateTestHUD();
+    }
+    S.testMissPtr++;
+  }
+}
+
+// Notelock: only the front-most unresolved note is ever reachable by a
+// keypress — a note further down the chart can't be sniped early just
+// because the timing happens to line up better than the note it's stuck
+// behind. The real game (and this one) always resolves the earliest
+// unjudged note first, hit, miss, or otherwise; S.testMissPtr tracks which
+// one that is.
+function judgeInput(color, simultBonus) {
+  if (!S.testPlay || !S.testNotes) return;
+  const notes = S.testNotes;
+  const idx = S.testMissPtr;
+  if (idx >= notes.length) return; // nothing left to hit
+  const n = notes[idx];
+  if (n.judged) return; // shouldn't happen — pointer always sits on the front unresolved note
+
+  const od = S.mapData.od;
+  const greatW = greatWindowMs(od);
+  const goodW = goodWindowMs(od);
+  const ct = S.currentTime;
+  const diff = Math.abs(n.time - ct);
+  if (diff > goodW) return; // the locked note isn't in range yet — press is wasted, no penalty
+
+  const nColor = n.type.indexOf('kat') !== -1 ? 'kat' : 'don';
+  if (nColor !== color) return; // wrong drum for the locked note — ignored, no penalty
+
+  n.judged = true;
+  if (diff <= greatW) {
+    n.result = 'great';
+    S.testStats.great++;
+    spawnJudgePopup(simultBonus ? 'GREAT ✦' : 'GREAT', color === 'kat' ? 'var(--kat)' : 'var(--don)');
+  } else {
+    n.result = 'good';
+    S.testStats.good++;
+    spawnJudgePopup('GOOD', 'var(--accent)');
+  }
+  S.testStats.combo++;
+  S.testStats.maxCombo = Math.max(S.testStats.maxCombo, S.testStats.combo);
+  S.testStats.score += (n.result === 'great' ? 300 : 150);
+  S.testMissPtr = idx + 1;
+  updateTestHUD();
+}
+
+function spawnJudgePopup(text, color) {
+  S.judgePopups.push({ text, color, spawnTime: performance.now() });
+}
+
+function updateTestHUD() {
+  const st = S.testStats;
+  if (!st) return;
+  document.getElementById('test-combo-n').textContent = st.combo;
+  const totalJudged = st.great + st.good + st.miss;
+  const acc = totalJudged ? ((st.great + st.good * 0.5) / totalJudged * 100) : 100;
+  document.getElementById('test-acc').textContent = acc.toFixed(2) + '%';
+}
+
+// keyboard input — held-key timestamps let us flag near-simultaneous
+// same-color presses (the real big-note "kacchan" double-hit) for flair.
+// We match on the physical key position (e.code) rather than the character
+// (e.key) so the D/F/J/K positions work the same on any keyboard layout —
+// e.g. on Dvorak those physical keys report as e/u/h/t, not d/f/j/k.
+document.addEventListener('keydown', (e) => {
+  if (!S.testPlay) return;
+  if (e.repeat) return;
+  if (e.key === 'Escape') { openPauseMenu(); return; }
+  if (testPauseEl.classList.contains('show')) return; // ignore drum input while paused
+  const code = CODE_COLOR[e.code] ? e.code : (KEY_COLOR[e.key.toLowerCase()] ? 'Key' + e.key.toUpperCase() : null);
+  const color = code ? CODE_COLOR[code] : null;
+  if (!color) return;
+  e.preventDefault();
+  const now = performance.now();
+  const pairCode = CODE_PAIR[code];
+  const simultBonus = S.heldKeys[pairCode] && (now - S.heldKeys[pairCode] < 40);
+  S.heldKeys[code] = now;
+  judgeInput(color, simultBonus);
+});
+document.addEventListener('keyup', (e) => {
+  const code = CODE_COLOR[e.code] ? e.code : (KEY_COLOR[e.key.toLowerCase()] ? 'Key' + e.key.toUpperCase() : null);
+  if (code) delete S.heldKeys[code];
+});
+
+// touch / mouse drum zones
+document.querySelectorAll('.drum-zone').forEach(btn => {
+  const code = btn.dataset.code;
+  const color = CODE_COLOR[code];
+  const trigger = (e) => {
+    e.preventDefault();
+    if (!S.testPlay || testPauseEl.classList.contains('show')) return;
+    btn.classList.add('pressed');
+    const now = performance.now();
+    const pairCode = CODE_PAIR[code];
+    const simultBonus = S.heldKeys[pairCode] && (now - S.heldKeys[pairCode] < 40);
+    S.heldKeys[code] = now;
+    judgeInput(color, simultBonus);
+    setTimeout(() => { delete S.heldKeys[code]; btn.classList.remove('pressed'); }, 60);
+  };
+  btn.addEventListener('pointerdown', trigger);
+});
+
+document.getElementById('btn-test-play').addEventListener('click', startTestPlay);
+document.getElementById('btn-test-exit').addEventListener('click', openPauseMenu);
+document.getElementById('btn-test-retry').addEventListener('click', () => { testResultsEl.classList.remove('show'); startTestPlay(); });
+document.getElementById('btn-test-back').addEventListener('click', () => {
+  testResultsEl.classList.remove('show');
+  S.currentTime = 0;
+  updateTimeUI();
+  render();
+});
+
+// ══════════════════════════════════════════════════════════════════════
+//  TRANSPORT UI WIRING
+// ══════════════════════════════════════════════════════════════════════
+document.getElementById('btn-play').addEventListener('click', () => {
+  if (!S.mapData) return;
+  S.isPlaying ? pausePlayback() : startPlayback();
+});
+document.getElementById('btn-restart').addEventListener('click', () => seekTo(0));
+document.getElementById('btn-back').addEventListener('click', () => seekTo(S.currentTime - 5000));
+document.getElementById('btn-fwd').addEventListener('click', () => seekTo(S.currentTime + 5000));
+
+const seekInput = document.getElementById('seek');
+seekInput.addEventListener('pointerdown', () => { S.seeking = true; });
+seekInput.addEventListener('input', () => { seekTo(parseFloat(seekInput.value)); });
+seekInput.addEventListener('pointerup', () => { S.seeking = false; });
+
+document.getElementById('speed-select').addEventListener('change', (e) => {
+  setPlaybackRate(parseFloat(e.target.value));
+});
+document.getElementById('volume').addEventListener('input', (e) => {
+  if (S.gainNode) S.gainNode.gain.value = parseFloat(e.target.value);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (!S.mapData || S.testPlay) return;
+  if (e.target && (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT')) return;
+  if (e.code === 'Space') { e.preventDefault(); S.isPlaying ? pausePlayback() : startPlayback(); }
+  if (e.code === 'ArrowLeft') seekTo(S.currentTime - 5000);
+  if (e.code === 'ArrowRight') seekTo(S.currentTime + 5000);
+});
+
+window.addEventListener('resize', () => render());
+new ResizeObserver(() => render()).observe(stageWrap);
+
+// ══════════════════════════════════════════════════════════════════════
+//  EMBED BRIDGE — lets a parent page (the song select screen) hand off a
+//  downloaded .osz directly instead of the user picking a file, then jump
+//  straight into test play. Only relevant when running inside an iframe.
+// ══════════════════════════════════════════════════════════════════════
+window.addEventListener('message', async (e) => {
+  const data = e.data;
+  if (!data || data.type !== 'taiko-load') return;
+  try {
+    const file = new File([data.buffer], data.filename || 'beatmap.osz', { type: 'application/zip' });
+    await handleFile(file);
+    if (!S.diffs || !S.diffs.length) throw new Error('no difficulties found in package');
+    // handleFile already selects the hardest diff by default — try to match
+    // the difficulty the player actually picked in song select, by keyword
+    // (e.g. "Oni"), falling back to that default if nothing matches.
+    if (data.diffHint) {
+      const hint = String(data.diffHint).toLowerCase();
+      const match = S.diffs.find(d => (d.mapData.version || '').toLowerCase().includes(hint));
+      if (match) await selectDiff(match.path);
+    }
+    setMode('single');
+    startTestPlay();
+  } catch (err) {
+    console.error('embed load failed:', err);
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'taiko-load-error', message: String(err && err.message || err) }, '*');
+    }
+  }
+});
+
+if (window.parent !== window) {
+  window.parent.postMessage({ type: 'taiko-ready' }, '*');
+}
+</script>
+</body>
+</html>
