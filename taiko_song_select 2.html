@@ -340,7 +340,7 @@ const HINAI_DIRECT_URL = `https://mirror.hinamizawa.ai/api/v1/hinai/search?${HIN
 
 // Fill this in after `wrangler deploy` — e.g. "https://taiko-mirror-proxy.yourname.workers.dev"
 // Leave blank to skip the proxy fallback entirely.
-const PROXY_BASE = "";
+const PROXY_BASE = "https://taikomirrorproxy.kiwi-martan.workers.dev";
 const HINAI_PROXY_URL = PROXY_BASE ? `${PROXY_BASE}/proxy/api/v1/hinai/search?${HINAI_QUERY}` : null;
 
 // Bucket a taiko star rating into the Kantan/Futsuu/Muzukashii/Oni/Ura ladder.
