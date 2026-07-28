@@ -301,6 +301,8 @@ kbd{
       <div class="hint">Navigate <kbd>↑</kbd><kbd>↓</kbd></div>
       <div class="hint">Difficulty <kbd>←</kbd><kbd>→</kbd></div>
       <div class="hint">Play <kbd>Enter</kbd></div>
+      <div class="hint" id="debugToggle" style="cursor:pointer; text-decoration:underline;">🐞 debug console</div>
+      <div class="hint" id="retryFetch" style="cursor:pointer; text-decoration:underline;">🔄 retry fetch</div>
     </div>
   </div>
 
@@ -409,7 +411,7 @@ const HINAI_DIRECT_URL = `https://mirror.hinamizawa.ai/api/v1/hinai/search?${HIN
 // Fill this in after `wrangler deploy` — e.g. "https://taiko-mirror-proxy.yourname.workers.dev"
 // Leave blank to skip the proxy fallback entirely.
 const PROXY_BASE = "https://taikomirrorproxy.kiwi-martan.workers.dev";
-const HINAI_PROXY_URL = PROXY_BASE ? `${PROXY_BASE}/proxy/api/v1/hinai/search?${HINAI_QUERY}` : null;
+const HINAI_PROXY_URL = PROXY_BASE ? `${PROXY_BASE}/beatmaps/search?${HINAI_QUERY}` : null;
 
 // Bucket a taiko star rating into the Kantan/Futsuu/Muzukashii/Oni/Ura ladder.
 function bucketDifficultyName(stars){
@@ -434,7 +436,9 @@ function coverColorsFor(setId){
 }
 
 async function fetchFromUrl(url){
+  console.log('[fetch] requesting:', url);
   const res = await fetch(url);
+  console.log('[fetch] response:', res.status, res.type, url);
   if (!res.ok) throw new Error(`request returned ${res.status}`);
   const data = await res.json();
   if (!Array.isArray(data) || data.length === 0) throw new Error('empty response');
@@ -737,6 +741,15 @@ window.addEventListener('keydown', (e) => {
 
 updatePlayButtonState();
 loadSongs();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/eruda/3.0.1/eruda.min.js"></script>
+<script>
+// Init immediately (hidden) so it's recording console/network activity from
+// page load, not just from when you open it — otherwise the very first
+// fetch attempt (which fires automatically) happens before it's listening.
+if (window.eruda){ eruda.init(); eruda.hide(); }
+document.getElementById('debugToggle').addEventListener('click', () => { if (window.eruda) eruda.show(); });
+document.getElementById('retryFetch').addEventListener('click', () => { if (window.eruda) eruda.show(); loadSongs(); });
 </script>
 </body>
 </html>
