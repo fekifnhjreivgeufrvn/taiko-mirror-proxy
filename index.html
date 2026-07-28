@@ -238,7 +238,7 @@ body{
 <div class="screen">
   <div class="topbar">
     <div class="logo"><span class="don">タ</span><span class="katsu">イコ</span>&nbsp;SELECT<small>osu!taiko — song select</small></div>
-    <div class="searchhint">Navigate <kbd>↑</kbd><kbd>↓</kbd>&nbsp; Difficulty <kbd>←</kbd><kbd>→</kbd>&nbsp; Play <kbd>Enter</kbd> &nbsp; <span id="debugToggle" style="cursor:pointer; text-decoration:underline;">🐞 debug console</span></div>
+    <div class="searchhint">Navigate <kbd>↑</kbd><kbd>↓</kbd>&nbsp; Difficulty <kbd>←</kbd><kbd>→</kbd>&nbsp; Play <kbd>Enter</kbd> &nbsp; <span id="debugToggle" style="cursor:pointer; text-decoration:underline;">🐞 debug console</span> &nbsp; <span id="retryFetch" style="cursor:pointer; text-decoration:underline;">🔄 retry fetch</span></div>
   </div>
 
   <div class="main">
@@ -295,13 +295,10 @@ body{
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/eruda/3.0.1/eruda.min.js"></script>
 <script>
-document.getElementById('debugToggle').addEventListener('click', () => {
-  if (window.eruda && !window.__erudaInit){
-    eruda.init();
-    window.__erudaInit = true;
-  }
-  if (window.eruda) eruda.show();
-});
+// Init immediately (hidden) so it's recording from page load, not just from when opened.
+if (window.eruda){ eruda.init(); eruda.hide(); }
+document.getElementById('debugToggle').addEventListener('click', () => { if (window.eruda) eruda.show(); });
+document.getElementById('retryFetch').addEventListener('click', () => { if (window.eruda) eruda.show(); loadSongs(); });
 </script>
 <script>
 const DIFF_COLORS = {
@@ -375,7 +372,9 @@ function coverColorsFor(setId){
 }
 
 async function fetchFromUrl(url){
+  console.log('[fetch] requesting:', url);
   const res = await fetch(url, { headers: { 'User-Agent': 'TaikoSongSelectDemo/1.0' } });
+  console.log('[fetch] response:', res.status, res.type, url);
   if (!res.ok) throw new Error(`request returned ${res.status}`);
   const data = await res.json();
   if (!Array.isArray(data) || data.length === 0) throw new Error('empty response');
