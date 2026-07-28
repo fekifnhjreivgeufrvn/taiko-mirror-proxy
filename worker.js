@@ -15,6 +15,7 @@ const UPSTREAM = "https://mirror.hinamizawa.ai";
 // keyword, in case a content blocker is matching on URL substrings rather than hostname.
 const ROUTES = {
   "/beatmaps/search": "/api/v1/hinai/search",
+  "/beatmaps/download": "/api/v1/hinai/d",
 };
 
 function corsHeaders() {
@@ -49,14 +50,17 @@ export default {
         cf: { cacheTtl: 30, cacheEverything: true }, // light edge caching, matches hinai's own 30-60s TTLs
       });
 
-      const body = await upstreamRes.text();
-      return new Response(body, {
-        status: upstreamRes.status,
-        headers: {
-          ...corsHeaders(),
-          "Content-Type": upstreamRes.headers.get("Content-Type") || "application/json",
-        },
-      });
+      // arrayBuffer (not text!) so binary .osz downloads pass through byte-for-byte —
+      // decoding as text and re-encoding would corrupt the zip.
+      const body = await upstreamRes.arrayBuffer();
+      const headers = {
+        ...corsHeaders(),
+        "Content-Type": upstreamRes.headers.get("Content-Type") || "application/octet-stream",
+      };
+      const disposition = upstreamRes.headers.get("Content-Disposition");
+      if (disposition) headers["Content-Disposition"] = disposition;
+
+      return new Response(body, { status: upstreamRes.status, headers });
     } catch (err) {
       return new Response(JSON.stringify({ error: "proxy fetch failed", detail: String(err) }), {
         status: 502,
