@@ -374,14 +374,22 @@ async function fetchFromUrl(url){
 
 async function fetchLiveSongs(){
   let data, source;
+  let directErrMsg = null;
   try{
     data = await fetchFromUrl(HINAI_DIRECT_URL);
     source = 'direct';
   }catch(directErr){
-    if (!HINAI_PROXY_URL) throw directErr; // no proxy configured, surface the original error
-    console.warn('direct hinai fetch failed, trying proxy:', directErr.message);
-    data = await fetchFromUrl(HINAI_PROXY_URL);
-    source = 'proxy';
+    directErrMsg = directErr.name ? `${directErr.name}: ${directErr.message}` : String(directErr);
+    if (!HINAI_PROXY_URL){
+      throw new Error(`direct failed (${directErrMsg}), no proxy configured`);
+    }
+    try{
+      data = await fetchFromUrl(HINAI_PROXY_URL);
+      source = 'proxy';
+    }catch(proxyErr){
+      const proxyErrMsg = proxyErr.name ? `${proxyErr.name}: ${proxyErr.message}` : String(proxyErr);
+      throw new Error(`direct: ${directErrMsg} — proxy: ${proxyErrMsg}`);
+    }
   }
 
   const songs = data.map(set => {
