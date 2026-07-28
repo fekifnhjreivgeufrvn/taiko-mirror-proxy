@@ -27,3 +27,4 @@ npm install -g wrangler
 wrangler login
 wrangler deploy
 ```
+don’t ask why it’s named as temu
