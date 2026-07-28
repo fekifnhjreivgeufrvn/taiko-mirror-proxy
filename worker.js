@@ -5,12 +5,17 @@
 // the actual request to hinai from Cloudflare's edge, not from the client.
 //
 // Usage from the browser once deployed:
-//   https://<your-worker>.workers.dev/proxy/api/v1/hinai/search?query=&mode=1&status=1
+//   https://<your-worker>.workers.dev/beatmaps/search?query=&mode=1&status=1
 // forwards to:
 //   https://mirror.hinamizawa.ai/api/v1/hinai/search?query=&mode=1&status=1
 
 const UPSTREAM = "https://mirror.hinamizawa.ai";
-const PROXY_PREFIX = "/proxy";
+
+// Obfuscated route map: client-facing paths deliberately avoid any "hinai"/mirror-related
+// keyword, in case a content blocker is matching on URL substrings rather than hostname.
+const ROUTES = {
+  "/beatmaps/search": "/api/v1/hinai/search",
+};
 
 function corsHeaders() {
   return {
@@ -29,11 +34,12 @@ export default {
       return new Response(null, { headers: corsHeaders() });
     }
 
-    if (!url.pathname.startsWith(PROXY_PREFIX)) {
-      return new Response("Not found. Use /proxy/<hinai path>", { status: 404 });
+    const matchedRoute = Object.keys(ROUTES).find(r => url.pathname === r || url.pathname.startsWith(r + "/"));
+    if (!matchedRoute) {
+      return new Response("Not found. Known routes: " + Object.keys(ROUTES).join(", "), { status: 404 });
     }
 
-    const upstreamPath = url.pathname.slice(PROXY_PREFIX.length); // strip "/proxy"
+    const upstreamPath = ROUTES[matchedRoute] + url.pathname.slice(matchedRoute.length);
     const upstreamUrl = UPSTREAM + upstreamPath + url.search;
 
     try {
