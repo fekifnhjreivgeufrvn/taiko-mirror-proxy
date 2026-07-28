@@ -373,7 +373,7 @@ function coverColorsFor(setId){
 
 async function fetchFromUrl(url){
   console.log('[fetch] requesting:', url);
-  const res = await fetch(url, { headers: { 'User-Agent': 'TaikoSongSelectDemo/1.0' } });
+  const res = await fetch(url);
   console.log('[fetch] response:', res.status, res.type, url);
   if (!res.ok) throw new Error(`request returned ${res.status}`);
   const data = await res.json();
