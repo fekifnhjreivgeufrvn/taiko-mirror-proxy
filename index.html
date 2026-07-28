@@ -238,7 +238,7 @@ body{
 <div class="screen">
   <div class="topbar">
     <div class="logo"><span class="don">タ</span><span class="katsu">イコ</span>&nbsp;SELECT<small>osu!taiko — song select</small></div>
-    <div class="searchhint">Navigate <kbd>↑</kbd><kbd>↓</kbd>&nbsp; Difficulty <kbd>←</kbd><kbd>→</kbd>&nbsp; Play <kbd>Enter</kbd></div>
+    <div class="searchhint">Navigate <kbd>↑</kbd><kbd>↓</kbd>&nbsp; Difficulty <kbd>←</kbd><kbd>→</kbd>&nbsp; Play <kbd>Enter</kbd> &nbsp; <span id="debugToggle" style="cursor:pointer; text-decoration:underline;">🐞 debug console</span></div>
   </div>
 
   <div class="main">
@@ -293,6 +293,16 @@ body{
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/eruda/3.0.1/eruda.min.js"></script>
+<script>
+document.getElementById('debugToggle').addEventListener('click', () => {
+  if (window.eruda && !window.__erudaInit){
+    eruda.init();
+    window.__erudaInit = true;
+  }
+  if (window.eruda) eruda.show();
+});
+</script>
 <script>
 const DIFF_COLORS = {
   Kantan:  {c:'#4fbf5f', name:'Easy'},
