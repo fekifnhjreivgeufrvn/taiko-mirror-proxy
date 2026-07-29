@@ -550,7 +550,12 @@ async function fetchLiveSongs(offset){
     const taikoDiffs = (set.ChildrenBeatmaps || [])
       .filter(b => b.Mode === 1)
       .sort((a,b) => a.DifficultyRating - b.DifficultyRating)
-      .map(b => ({ d: bucketDifficultyName(b.DifficultyRating), stars: Math.round(b.DifficultyRating*10)/10, beatmapId: b.BeatmapID }));
+      .map(b => ({
+        d: bucketDifficultyName(b.DifficultyRating), // star-rating bucket — used only to pick a ladder colour
+        name: b.DiffName || bucketDifficultyName(b.DifficultyRating), // the mapper's actual diff name, e.g. "Futsuu" or a custom title
+        stars: Math.round(b.DifficultyRating*10)/10,
+        beatmapId: b.BeatmapID
+      }));
 
     // No real taiko difficulty in this set — skip it entirely rather than
     // faking a placeholder. mode=1 in the query should already guarantee
@@ -749,7 +754,7 @@ function renderInfo(){
     btn.style.setProperty('--diff-color', info.hex);
     btn.innerHTML = `
       <div class="drum-dot" style="--diff-color:${info.hex}"></div>
-      <div class="diff-name">${info.name}</div>
+      <div class="diff-name">${diff.name || info.name}</div>
       <div class="diff-stars">${starString(Math.min(diff.stars,5))}${diff.stars>5?' +'+(diff.stars-5):''}</div>
     `;
     btn.addEventListener('click', () => { selectedDiffIndex = i; renderAll(); });
@@ -827,8 +832,11 @@ async function downloadOszBytes(setId){
   }
 }
 
+let isDownloading = false;
 document.getElementById('playBtn').addEventListener('click', async () => {
   if (!songsAreLive) return; // offline sample data has no real map to download
+  if (isDownloading) return; // guards against a stray/duplicate trigger (e.g. Enter) while one is already in flight
+  isDownloading = true;
   const song = SONGS[selectedIndex];
   const diff = song.diffs[selectedDiffIndex];
   const playBtn = document.getElementById('playBtn');
@@ -837,7 +845,7 @@ document.getElementById('playBtn').addEventListener('click', async () => {
   playBtn.style.pointerEvents = 'none';
   try{
     const buffer = await downloadOszBytes(song.setId);
-    pendingLoadPayload = { type: 'taiko-load', buffer, diffHint: diff.d, filename: (song.title || 'beatmap') + '.osz' };
+    pendingLoadPayload = { type: 'taiko-load', buffer, diffHint: diff.name || diff.d, filename: (song.title || 'beatmap') + '.osz' };
     gameFrame.style.display = 'block';
     gameFrame.src = 'gameplay.html?t=' + Date.now(); // force a fresh load, triggers taiko-ready
   }catch(err){
@@ -846,10 +854,17 @@ document.getElementById('playBtn').addEventListener('click', async () => {
   }finally{
     playBtn.textContent = originalText;
     playBtn.style.pointerEvents = '';
+    isDownloading = false;
   }
 });
 
 window.addEventListener('keydown', (e) => {
+  // Don't hijack keys while the person is typing/selecting in the filter bar —
+  // this was the cause of Enter in the search box (or arrows in a stars/BPM
+  // field) *also* triggering song navigation or an instant Play in the background.
+  const tag = e.target && e.target.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
   if (e.key === 'ArrowDown'){ selectedIndex = (selectedIndex+1) % SONGS.length; selectedDiffIndex = 0; renderAll(); }
   if (e.key === 'ArrowUp'){ selectedIndex = (selectedIndex-1+SONGS.length) % SONGS.length; selectedDiffIndex = 0; renderAll(); }
   if (e.key === 'ArrowRight'){ const song = SONGS[selectedIndex]; selectedDiffIndex = Math.min(selectedDiffIndex+1, song.diffs.length-1); renderAll(); }
