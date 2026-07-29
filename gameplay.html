@@ -311,6 +311,7 @@ function parseOSU(text) {
     backgroundFile: '',
     svPoints: [],
     od: 5,
+    mode: 0, // 0=osu std, 1=taiko, 2=ctb, 3=mania — maps predating this field are std
   };
   let section = '';
   for (const raw of lines) {
@@ -323,6 +324,7 @@ function parseOSU(text) {
     }
     if (section === 'general') {
       if (line.startsWith('AudioFilename:')) result.audioFilename = line.split(':').slice(1).join(':').trim();
+      if (line.startsWith('Mode:')) { const m = parseInt(line.slice(5).trim(), 10); if (!isNaN(m)) result.mode = m; }
     }
     if (section === 'difficulty') {
       if (line.startsWith('OverallDifficulty:')) {
@@ -833,8 +835,15 @@ async function handleFile(file) {
     const diffs = [];
     for (const path of osuPaths) {
       const text = await zip.files[path].async('string');
-      diffs.push({ path, mapData: parseOSU(text) });
+      const mapData = parseOSU(text);
+      // A beatmap set's .osz bundles every difficulty from every mode the
+      // mapper made (std/taiko/ctb/mania) — this is a taiko-only player, so
+      // anything that isn't Mode:1 must be dropped here, not merely hidden
+      // in the song-select list, or it can end up picked as the default diff.
+      if (mapData.mode !== 1) continue;
+      diffs.push({ path, mapData });
     }
+    if (diffs.length === 0) throw new Error('No osu!taiko difficulties found inside this package — it may only contain other game modes.');
     diffs.sort((a, b) => a.mapData.hitObjects.length - b.mapData.hitObjects.length);
 
     loadingMsg.textContent = 'Decoding audio…';
