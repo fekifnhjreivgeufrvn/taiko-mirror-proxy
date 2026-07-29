@@ -367,6 +367,8 @@ kbd{
           <option value="ranked_desc">Newest ranked</option>
           <option value="favourites_desc">Most favourited</option>
           <option value="title_asc">Title A–Z</option>
+          <option value="difficulty_desc">Hardest first</option>
+          <option value="difficulty_asc">Easiest first</option>
         </select>
         <select id="filterStatus" class="filter-select">
           <option value="1">Ranked</option>
@@ -577,6 +579,24 @@ async function fetchLiveSongs(offset){
       diffs: taikoDiffs,
     };
   }).filter(Boolean);
+
+  // hinai's own docs warn that some params fail *silently* (a 200 with
+  // unfiltered data, not an error) — so verify sort=difficulty_desc/asc
+  // actually did something rather than trusting it blindly, and fix it
+  // client-side for this page if the server ignored it.
+  if ((FILTERS.sort === 'difficulty_desc' || FILTERS.sort === 'difficulty_asc') && songs.length > 1){
+    const wantDesc = FILTERS.sort === 'difficulty_desc';
+    const topStars = s => s.diffs[s.diffs.length - 1].stars; // diffs are pre-sorted ascending, so the last one is the hardest
+    let isSorted = true;
+    for (let i = 1; i < songs.length; i++){
+      const prev = topStars(songs[i-1]), cur = topStars(songs[i]);
+      if (wantDesc ? cur > prev : cur < prev){ isSorted = false; break; }
+    }
+    if (!isSorted){
+      console.warn(`[hinai] sort=${FILTERS.sort} came back unsorted (star ratings: ${songs.map(topStars).join(', ')}) — the API likely doesn't support difficulty sort on this endpoint. Sorting client-side for this page instead.`);
+      songs.sort((a,b) => wantDesc ? topStars(b)-topStars(a) : topStars(a)-topStars(b));
+    }
+  }
 
   songs.__source = source;
   songs.__rawCount = data.length; // for hasMore — raw page size from the API, not post-filter count
