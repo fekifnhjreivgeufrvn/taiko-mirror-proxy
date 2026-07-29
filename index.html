@@ -263,27 +263,42 @@ kbd{
 .songlist::-webkit-scrollbar-track{ background:transparent; }
 
 .song-row{
-  display:flex; align-items:center; gap:14px;
-  background:var(--bg1); border:1px solid var(--border-soft); border-left:3px solid transparent;
-  border-radius:var(--r); padding:10px 16px; cursor:pointer;
-  transition: transform 0.13s, background 0.13s, border-color 0.13s;
+  display:flex; align-items:center; gap:13px;
+  background:var(--bg1); border:1px solid var(--border-soft);
+  border-left:5px solid var(--row-color, var(--border-soft));
+  border-radius:var(--r); padding:9px 16px 9px 13px; cursor:pointer;
+  position:relative;
+  transition: transform 0.13s, background 0.13s, box-shadow 0.13s;
 }
-.song-row:hover{ background:var(--bg2); border-color:var(--bg4); transform:translateX(2px); }
+/* faint colour wash bleeding in from the difficulty edge — echoes the edge
+   colour without turning the whole row into a colour block */
+.song-row::before{
+  content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:linear-gradient(90deg, var(--row-color, transparent) 0%, transparent 42%);
+  opacity:0.07;
+}
+.song-row:hover{ background:var(--bg2); transform:translateX(2px); box-shadow:0 0 16px -9px var(--row-color, var(--bg4)); }
 .song-row.selected{
-  background:var(--bg2); border-color:var(--row-color); border-left-color:var(--row-color);
+  background:var(--bg2);
   transform:translateX(4px);
-  box-shadow:0 0 20px -6px var(--row-color);
+  box-shadow:0 0 22px -6px var(--row-color), inset 0 0 0 1px var(--row-color);
 }
-.song-icon{
-  width:36px; height:36px; border-radius:50%; flex-shrink:0;
+.song-cover{
+  width:44px; height:44px; border-radius:9px; flex-shrink:0; position:relative; overflow:hidden;
   background:radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), transparent 60%), var(--row-color);
   border:2px solid rgba(255,255,255,0.15);
+  z-index:1; /* sit above the row's colour-wash pseudo-element */
 }
-.song-text{ flex:1; min-width:0; }
+.song-cover img{
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  opacity:0; transition:opacity 0.3s ease;
+}
+.song-cover img.loaded{ opacity:1; }
+.song-text{ flex:1; min-width:0; position:relative; z-index:1; }
 .song-title{ font-weight:700; font-size:0.86rem; color:var(--text-bright); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .song-artist{ font-size:0.7rem; font-weight:600; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.song-stars{ font-size:0.68rem; font-weight:700; color:var(--row-color); flex-shrink:0; letter-spacing:1px; }
-.song-bpm{ font-size:0.68rem; font-weight:600; color:var(--text-dim); width:62px; text-align:right; flex-shrink:0; }
+.song-stars{ font-size:0.68rem; font-weight:700; color:var(--row-color); flex-shrink:0; letter-spacing:1px; position:relative; z-index:1; }
+.song-bpm{ font-size:0.68rem; font-weight:600; color:var(--text-dim); width:62px; text-align:right; flex-shrink:0; position:relative; z-index:1; }
 
 /* ---------- bottom bar ---------- */
 .bottombar{
@@ -419,12 +434,41 @@ kbd{
 
 <script>
 const DIFF_COLORS = {
-  Kantan:     {c:'var(--kantan)',     hex:'#7aa84a', name:'Easy'},
-  Futsuu:     {c:'var(--futsuu)',     hex:'#d9b95c', name:'Normal'},
-  Muzukashii: {c:'var(--muzukashii)', hex:'#d97757', name:'Hard'},
-  Oni:        {c:'var(--oni)',        hex:'#d94747', name:'Oni'},
-  Ura:        {c:'var(--ura)',        hex:'#b48ad9', name:'Ura Oni'}
+  Kantan:     {name:'Easy'},
+  Futsuu:     {name:'Normal'},
+  Muzukashii: {name:'Hard'},
+  Oni:        {name:'Oni'},
+  Ura:        {name:'Ura Oni'}
 };
+
+// osu!'s own star-rating colour spectrum (the gradient osu!web uses on beatmap
+// listings), linearly interpolated between stops — gives every difficulty its
+// own precise shade instead of bucketing into 5 flat colours.
+const DIFF_SPECTRUM = [
+  { stars: 0.1, rgb: [0x42,0x90,0xfb] },
+  { stars: 1.25, rgb: [0x4f,0xc0,0xff] },
+  { stars: 2.0, rgb: [0x4f,0xff,0xd5] },
+  { stars: 2.5, rgb: [0x7c,0xff,0x4f] },
+  { stars: 3.3, rgb: [0xf6,0xf0,0x5c] },
+  { stars: 4.2, rgb: [0xff,0x80,0x68] },
+  { stars: 4.9, rgb: [0xff,0x4e,0x6f] },
+  { stars: 5.8, rgb: [0xc6,0x45,0xb8] },
+  { stars: 6.7, rgb: [0x65,0x63,0xde] },
+  { stars: 7.7, rgb: [0x18,0x15,0x8e] },
+  { stars: 9.0, rgb: [0x00,0x00,0x00] },
+];
+function starColor(stars){
+  const s = Math.max(0, stars || 0);
+  if (s <= DIFF_SPECTRUM[0].stars) return `rgb(${DIFF_SPECTRUM[0].rgb.join(',')})`;
+  for (let i = 1; i < DIFF_SPECTRUM.length; i++){
+    if (s <= DIFF_SPECTRUM[i].stars || i === DIFF_SPECTRUM.length - 1){
+      const lo = DIFF_SPECTRUM[i-1], hi = DIFF_SPECTRUM[i];
+      const t = Math.min(1, (s - lo.stars) / (hi.stars - lo.stars));
+      const rgb = lo.rgb.map((c, k) => Math.round(c + (hi.rgb[k] - c) * t));
+      return `rgb(${rgb.join(',')})`;
+    }
+  }
+}
 
 // Fallback data — used only if the live API call fails (network/CORS/etc).
 const MOCK_SONGS = [
@@ -709,10 +753,10 @@ function renderList(){
     const row = document.createElement('div');
     row.className = 'song-row' + (i === selectedIndex ? ' selected' : '');
     const topDiff = song.diffs[song.diffs.length-1];
-    const color = DIFF_COLORS[topDiff.d].hex;
+    const color = starColor(topDiff.stars);
     row.style.setProperty('--row-color', color);
     row.innerHTML = `
-      <div class="song-icon"></div>
+      <div class="song-cover">${song.cover ? `<img alt="" loading="lazy">` : ''}</div>
       <div class="song-text">
         <div class="song-title">${song.title}</div>
         <div class="song-artist">${song.artist}</div>
@@ -720,6 +764,15 @@ function renderList(){
       <div class="song-stars">${starString(Math.min(topDiff.stars,5))}${topDiff.stars>5?'+':''}</div>
       <div class="song-bpm">${song.bpm} BPM</div>
     `;
+    // Cover art loads over the top of the gradient chip rather than replacing
+    // it — a failed/slow image (cross-origin, 404, still loading) just leaves
+    // the difficulty-tinted gradient showing underneath instead of a blank box.
+    const img = row.querySelector('.song-cover img');
+    if (img){
+      img.addEventListener('load', () => img.classList.add('loaded'));
+      img.addEventListener('error', () => img.remove());
+      img.src = song.cover;
+    }
     row.addEventListener('click', () => { selectedIndex = i; selectedDiffIndex = song.diffs.length-1; renderAll(); });
     list.appendChild(row);
   });
@@ -769,11 +822,12 @@ function renderInfo(){
   diffList.innerHTML = '';
   song.diffs.forEach((diff, i) => {
     const info = DIFF_COLORS[diff.d];
+    const color = starColor(diff.stars);
     const btn = document.createElement('div');
     btn.className = 'diff-btn' + (i === selectedDiffIndex ? ' active' : '');
-    btn.style.setProperty('--diff-color', info.hex);
+    btn.style.setProperty('--diff-color', color);
     btn.innerHTML = `
-      <div class="drum-dot" style="--diff-color:${info.hex}"></div>
+      <div class="drum-dot" style="--diff-color:${color}"></div>
       <div class="diff-name">${diff.name || info.name}</div>
       <div class="diff-stars">${starString(Math.min(diff.stars,5))}${diff.stars>5?' +'+(diff.stars-5):''}</div>
     `;
@@ -783,8 +837,7 @@ function renderInfo(){
 
   document.getElementById('metaStars').textContent = song.diffs[selectedDiffIndex].stars;
 
-  const activeDiff = DIFF_COLORS[song.diffs[selectedDiffIndex].d];
-  cover.style.setProperty('--diff-color', activeDiff.hex);
+  cover.style.setProperty('--diff-color', starColor(song.diffs[selectedDiffIndex].stars));
 
   renderNoteStrip();
 }
