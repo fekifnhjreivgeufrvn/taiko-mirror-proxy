@@ -220,16 +220,42 @@ kbd{
 
 /* ---------- song list (right) ---------- */
 .songlist-wrap{ flex:1; min-width:0; display:flex; flex-direction:column; min-height:0; }
-.list-toolbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:0 2px; }
-.sort-tabs{ display:flex; gap:6px; }
-.sort-tab{
-  font-family:'Nunito'; font-size:0.62rem; font-weight:800; letter-spacing:1px; text-transform:uppercase;
-  color:var(--text-dim); padding:6px 13px; border-radius:20px; cursor:pointer;
-  border:1px solid var(--border-soft); background:var(--bg1); transition:all 0.15s;
+
+.filter-bar{
+  display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  margin-bottom:10px; padding:10px; border-radius:var(--r);
+  background:var(--bg1); border:1px solid var(--border-soft);
 }
-.sort-tab:hover{ color:var(--text-bright); border-color:var(--bg4); }
-.sort-tab.active{ color:#fff; background:var(--accent); border-color:var(--accent); box-shadow:0 2px 10px var(--accent-glow); }
-.count{ font-size:0.62rem; font-weight:700; color:var(--text-dim); letter-spacing:0.5px; }
+.filter-input{
+  flex:1 1 180px; min-width:140px;
+  background:var(--bg2); border:1px solid var(--border-soft); border-radius:var(--r-sm);
+  color:var(--text-bright); font-family:'Nunito'; font-size:0.72rem; font-weight:600;
+  padding:7px 10px;
+}
+.filter-input::placeholder{ color:var(--text-dim); }
+.filter-select{
+  background:var(--bg2); border:1px solid var(--border-soft); border-radius:var(--r-sm);
+  color:var(--text-bright); font-family:'Nunito'; font-size:0.7rem; font-weight:700;
+  padding:7px 8px; cursor:pointer;
+}
+.filter-range{ display:flex; align-items:center; gap:4px; }
+.filter-label{ font-size:0.62rem; font-weight:800; color:var(--text-dim); letter-spacing:0.5px; margin-right:2px; }
+.filter-dash{ color:var(--text-dim); font-size:0.7rem; }
+.filter-num{
+  width:52px; background:var(--bg2); border:1px solid var(--border-soft); border-radius:var(--r-sm);
+  color:var(--text-bright); font-family:'Nunito'; font-size:0.7rem; font-weight:600;
+  padding:6px 6px; text-align:center;
+}
+.filter-num::-webkit-inner-spin-button{ opacity:0.4; }
+.filter-apply{
+  font-family:'Nunito'; font-size:0.68rem; font-weight:800; letter-spacing:0.5px; text-transform:uppercase;
+  color:#fff; background:var(--accent); border:1px solid var(--accent); border-radius:var(--r-sm);
+  padding:8px 16px; cursor:pointer; transition:filter 0.15s;
+}
+.filter-apply:hover{ filter:brightness(1.1); }
+
+.list-toolbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:0 2px; gap:10px; }
+.count{ font-size:0.62rem; font-weight:700; color:var(--text-dim); letter-spacing:0.5px; white-space:nowrap; }
 
 .songlist{ flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding-right:6px; }
 .songlist::-webkit-scrollbar{ width:8px; }
@@ -334,19 +360,46 @@ kbd{
     </div>
 
     <div class="songlist-wrap">
-      <div class="list-toolbar">
-        <div class="sort-tabs">
-          <div class="sort-tab active">Title</div>
-          <div class="sort-tab">Artist</div>
-          <div class="sort-tab">Stars</div>
-          <div class="sort-tab">BPM</div>
+      <div class="filter-bar">
+        <input type="text" id="filterQuery" class="filter-input" placeholder="Search title, artist, mapper…">
+        <select id="filterSort" class="filter-select">
+          <option value="plays_desc">Most played</option>
+          <option value="ranked_desc">Newest ranked</option>
+          <option value="favourites_desc">Most favourited</option>
+          <option value="title_asc">Title A–Z</option>
+        </select>
+        <select id="filterStatus" class="filter-select">
+          <option value="1">Ranked</option>
+          <option value="4">Loved</option>
+          <option value="2">Approved</option>
+          <option value="3">Qualified</option>
+          <option value="">All statuses</option>
+        </select>
+        <div class="filter-range">
+          <span class="filter-label">★</span>
+          <input type="number" id="filterMinStars" class="filter-num" min="0" max="15" step="0.1" placeholder="min">
+          <span class="filter-dash">–</span>
+          <input type="number" id="filterMaxStars" class="filter-num" min="0" max="15" step="0.1" placeholder="max">
         </div>
+        <div class="filter-range">
+          <span class="filter-label">BPM</span>
+          <input type="number" id="filterMinBpm" class="filter-num" min="0" placeholder="min">
+          <span class="filter-dash">–</span>
+          <input type="number" id="filterMaxBpm" class="filter-num" min="0" placeholder="max">
+        </div>
+        <button class="filter-apply" id="filterApply">Search</button>
+      </div>
+      <div class="list-toolbar">
+        <div class="eyebrow" style="margin-top:0;">osu!taiko only — mode is locked, this is a taiko game</div>
         <div style="display:flex; align-items:center; gap:14px;">
           <div id="statusBanner" class="eyebrow" style="margin-top:0;"></div>
           <div class="count" id="songCount"></div>
         </div>
       </div>
       <div class="songlist" id="songList"></div>
+      <div id="loadMoreWrap" style="display:none; padding:10px 2px 0;">
+        <button class="btn" id="loadMoreBtn" style="width:100%; justify-content:center;">Load more charts</button>
+      </div>
     </div>
   </div>
 
@@ -404,14 +457,41 @@ let selectedIndex = 0;
 let selectedDiffIndex = 0;
 let songsAreLive = false;
 
-// --- Live data: hinai v1 search API (CheeseGull-compatible), taiko mode, ranked only ---
-const HINAI_QUERY = "query=&mode=1&status=1&amount=30&sort=plays_desc";
-const HINAI_DIRECT_URL = `https://mirror.hinamizawa.ai/api/v1/hinai/search?${HINAI_QUERY}`;
+// --- Live data: hinai v1 search API (CheeseGull-compatible) ---
+// mode is hardcoded to 1 (taiko) everywhere below and never exposed in the
+// filter UI — this is a taiko game, so non-taiko results are never an option.
+const PAGE_SIZE = 30;
+const FILTERS = {
+  query: '',
+  sort: 'plays_desc',
+  status: '1',       // '' = all statuses
+  minStars: '', maxStars: '',
+  minBpm: '', maxBpm: '',
+};
+let currentOffset = 0;
+let hasMore = true;
+let isLoadingPage = false;
+
+function buildSearchParams(offset){
+  const p = new URLSearchParams();
+  p.set('query', FILTERS.query || '');
+  p.set('mode', '1'); // taiko — locked, not a filter option
+  if (FILTERS.status !== '') p.set('status', FILTERS.status);
+  p.set('amount', String(PAGE_SIZE));
+  p.set('offset', String(offset));
+  if (FILTERS.sort) p.set('sort', FILTERS.sort);
+  if (FILTERS.minStars !== '') p.set('min_stars', FILTERS.minStars);
+  if (FILTERS.maxStars !== '') p.set('max_stars', FILTERS.maxStars);
+  if (FILTERS.minBpm !== '') p.set('min_bpm', FILTERS.minBpm);
+  if (FILTERS.maxBpm !== '') p.set('max_bpm', FILTERS.maxBpm);
+  return p.toString();
+}
+function hinaiDirectUrl(offset){ return `https://mirror.hinamizawa.ai/api/v1/hinai/search?${buildSearchParams(offset)}`; }
 
 // Fill this in after `wrangler deploy` — e.g. "https://taiko-mirror-proxy.yourname.workers.dev"
 // Leave blank to skip the proxy fallback entirely.
 const PROXY_BASE = "https://taikomirrorproxy.kiwi-martan.workers.dev";
-const HINAI_PROXY_URL = PROXY_BASE ? `${PROXY_BASE}/beatmaps/search?${HINAI_QUERY}` : null;
+function hinaiProxyUrl(offset){ return PROXY_BASE ? `${PROXY_BASE}/beatmaps/search?${buildSearchParams(offset)}` : null; }
 
 // Bucket a taiko star rating into the Kantan/Futsuu/Muzukashii/Oni/Ura ladder.
 function bucketDifficultyName(stars){
@@ -441,23 +521,24 @@ async function fetchFromUrl(url){
   console.log('[fetch] response:', res.status, res.type, url);
   if (!res.ok) throw new Error(`request returned ${res.status}`);
   const data = await res.json();
-  if (!Array.isArray(data) || data.length === 0) throw new Error('empty response');
-  return data;
+  if (!Array.isArray(data)) throw new Error('unexpected response shape');
+  return data; // an empty array is a valid answer (no/no-more matches), not a failure
 }
 
-async function fetchLiveSongs(){
+async function fetchLiveSongs(offset){
   let data, source;
   let directErrMsg = null;
   try{
-    data = await fetchFromUrl(HINAI_DIRECT_URL);
+    data = await fetchFromUrl(hinaiDirectUrl(offset));
     source = 'direct';
   }catch(directErr){
     directErrMsg = directErr.name ? `${directErr.name}: ${directErr.message}` : String(directErr);
-    if (!HINAI_PROXY_URL){
+    const proxyUrl = hinaiProxyUrl(offset);
+    if (!proxyUrl){
       throw new Error(`direct failed (${directErrMsg}), no proxy configured`);
     }
     try{
-      data = await fetchFromUrl(HINAI_PROXY_URL);
+      data = await fetchFromUrl(proxyUrl);
       source = 'proxy';
     }catch(proxyErr){
       const proxyErrMsg = proxyErr.name ? `${proxyErr.name}: ${proxyErr.message}` : String(proxyErr);
@@ -471,6 +552,11 @@ async function fetchLiveSongs(){
       .sort((a,b) => a.DifficultyRating - b.DifficultyRating)
       .map(b => ({ d: bucketDifficultyName(b.DifficultyRating), stars: Math.round(b.DifficultyRating*10)/10, beatmapId: b.BeatmapID }));
 
+    // No real taiko difficulty in this set — skip it entirely rather than
+    // faking a placeholder. mode=1 in the query should already guarantee
+    // this doesn't happen, but this is the actual enforcement, not that.
+    if (!taikoDiffs.length) return null;
+
     const topLen = (set.ChildrenBeatmaps || [])[0]?.TotalLength;
     const colors = coverColorsFor(set.SetID);
 
@@ -483,11 +569,12 @@ async function fetchLiveSongs(){
       coverA: colors.a, coverB: colors.b,
       cover: `https://assets.ppy.sh/beatmaps/${set.SetID}/covers/cover.jpg`,
       setId: set.SetID,
-      diffs: taikoDiffs.length ? taikoDiffs : [{ d:'Oni', stars:0, beatmapId:null }],
+      diffs: taikoDiffs,
     };
-  }).filter(s => s.diffs.length > 0);
+  }).filter(Boolean);
 
   songs.__source = source;
+  songs.__rawCount = data.length; // for hasMore — raw page size from the API, not post-filter count
   return songs;
 }
 
@@ -510,24 +597,67 @@ function setStatusBanner(mode, detail){
   }
 }
 
-async function loadSongs(){
+async function loadSongs(reset){
+  if (isLoadingPage) return;
+  isLoadingPage = true;
   const list = document.getElementById('songList');
-  list.innerHTML = '<div style="padding:20px;color:var(--text-dim);font-size:0.75rem;">Fetching charts from hinai…</div>';
-  try{
-    SONGS = await fetchLiveSongs();
-    songsAreLive = true;
-    setStatusBanner(SONGS.__source || 'direct');
-  }catch(err){
-    console.error('hinai fetch failed (direct and proxy), falling back to mock data:', err);
-    SONGS = MOCK_SONGS;
-    songsAreLive = false;
-    setStatusBanner('offline', err.message);
+  const loadMoreBtn = document.getElementById('loadMoreBtn');
+
+  if (reset){
+    currentOffset = 0;
+    hasMore = true;
+    list.innerHTML = '<div style="padding:20px;color:var(--text-dim);font-size:0.75rem;">Fetching charts from hinai…</div>';
+  } else if (loadMoreBtn){
+    loadMoreBtn.textContent = 'Loading…';
+    loadMoreBtn.disabled = true;
   }
-  selectedIndex = 0;
-  selectedDiffIndex = 0;
+
+  try{
+    const page = await fetchLiveSongs(currentOffset);
+    songsAreLive = true;
+    setStatusBanner(page.__source || 'direct');
+    SONGS = reset ? page : SONGS.concat(page);
+    currentOffset += (page.__rawCount || page.length);
+    hasMore = (page.__rawCount || page.length) >= PAGE_SIZE;
+  }catch(err){
+    console.error('hinai fetch failed (direct and proxy):', err);
+    if (reset){
+      SONGS = MOCK_SONGS;
+      songsAreLive = false;
+      hasMore = false;
+      setStatusBanner('offline', err.message);
+    } else {
+      // A page beyond the first failing doesn't need to nuke the list we
+      // already have — just stop offering more and say why.
+      hasMore = false;
+      alert('Could not load more maps: ' + err.message);
+    }
+  }
+
+  if (reset){
+    selectedIndex = 0;
+    selectedDiffIndex = 0;
+  }
+  isLoadingPage = false;
   updatePlayButtonState();
   renderAll();
 }
+
+function applyFilters(){
+  FILTERS.query = document.getElementById('filterQuery').value.trim();
+  FILTERS.sort = document.getElementById('filterSort').value;
+  FILTERS.status = document.getElementById('filterStatus').value;
+  FILTERS.minStars = document.getElementById('filterMinStars').value;
+  FILTERS.maxStars = document.getElementById('filterMaxStars').value;
+  FILTERS.minBpm = document.getElementById('filterMinBpm').value;
+  FILTERS.maxBpm = document.getElementById('filterMaxBpm').value;
+  loadSongs(true);
+}
+document.getElementById('filterApply').addEventListener('click', applyFilters);
+document.getElementById('filterQuery').addEventListener('keydown', (e) => { if (e.key === 'Enter') applyFilters(); });
+document.getElementById('filterSort').addEventListener('change', applyFilters);
+document.getElementById('filterStatus').addEventListener('change', applyFilters);
+document.getElementById('loadMoreBtn').addEventListener('click', () => loadSongs(false));
 
 function updatePlayButtonState(){
   const btn = document.getElementById('playBtn');
@@ -547,6 +677,9 @@ function starString(n){ return '★'.repeat(n); }
 function renderList(){
   const list = document.getElementById('songList');
   list.innerHTML = '';
+  if (songsAreLive && SONGS.length === 0){
+    list.innerHTML = '<div style="padding:20px;color:var(--text-dim);font-size:0.75rem;">No taiko maps match these filters — try widening the range.</div>';
+  }
   SONGS.forEach((song, i) => {
     const row = document.createElement('div');
     row.className = 'song-row' + (i === selectedIndex ? ' selected' : '');
@@ -566,6 +699,16 @@ function renderList(){
     list.appendChild(row);
   });
   document.getElementById('songCount').textContent = SONGS.length + ' CHARTS';
+
+  const loadMoreWrap = document.getElementById('loadMoreWrap');
+  const loadMoreBtn = document.getElementById('loadMoreBtn');
+  if (songsAreLive && hasMore && SONGS.length > 0){
+    loadMoreWrap.style.display = '';
+    loadMoreBtn.textContent = 'Load more charts';
+    loadMoreBtn.disabled = false;
+  } else {
+    loadMoreWrap.style.display = 'none';
+  }
 }
 
 function renderInfo(){
@@ -740,7 +883,7 @@ window.addEventListener('keydown', (e) => {
 })();
 
 updatePlayButtonState();
-loadSongs();
+loadSongs(true);
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/eruda/3.0.1/eruda.min.js"></script>
 <script>
@@ -749,7 +892,7 @@ loadSongs();
 // fetch attempt (which fires automatically) happens before it's listening.
 if (window.eruda){ eruda.init(); eruda.hide(); }
 document.getElementById('debugToggle').addEventListener('click', () => { if (window.eruda) eruda.show(); });
-document.getElementById('retryFetch').addEventListener('click', () => { if (window.eruda) eruda.show(); loadSongs(); });
+document.getElementById('retryFetch').addEventListener('click', () => { if (window.eruda) eruda.show(); loadSongs(true); });
 </script>
 </body>
 </html>
