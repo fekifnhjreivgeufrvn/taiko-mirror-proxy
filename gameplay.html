@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Taiko Previewer</title>
+<title>Taiko Gameplay</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@400;500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -53,70 +53,6 @@
     min-height: 0;
   }
 
-  /* ── Top bar ───────────────────────────────────────────────────── */
-  #topbar {
-    grid-row: 1;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    flex-wrap: wrap;
-    min-height: 40px;
-  }
-  .brand { display: flex; align-items: baseline; gap: 9px; flex-shrink: 0; }
-  .brand .mark {
-    font-family: 'Kaisei Decol', serif;
-    font-weight: 700;
-    font-size: 1.22rem;
-    letter-spacing: 0.01em;
-    background: linear-gradient(90deg, var(--don), var(--accent) 55%, var(--kat));
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-  }
-  .brand .sub { font-size: 0.7rem; color: var(--text-dim); display: none; }
-  @media (min-width: 720px) { .brand .sub { display: inline; } }
-
-  #meta-inline {
-    display: flex; flex-direction: column; min-width: 0; flex: 1;
-    overflow: hidden;
-  }
-  #meta-inline .title { font-size: 0.88rem; font-weight: 700; color: var(--text-bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #meta-inline .sub-line { font-size: 0.68rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; gap: 10px; font-family: 'JetBrains Mono', monospace; }
-  #meta-inline .sub-line b { color: var(--text); font-weight: 600; }
-  #meta-inline.empty .title { color: var(--text-dim); font-weight: 500; }
-
-  #topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-
-  .segmented {
-    display: flex; background: var(--bg2); border: 1px solid var(--line);
-    border-radius: 9px; padding: 2px; gap: 2px;
-  }
-  .segmented button {
-    font-family: inherit; font-size: 0.72rem; font-weight: 600;
-    color: var(--text-dim); background: transparent; border: none;
-    padding: 6px 11px; border-radius: 7px; cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
-  }
-  .segmented button.active { background: var(--bg4); color: var(--text-bright); }
-  .segmented button:disabled { opacity: 0.4; cursor: default; }
-
-  #diff-select {
-    background: var(--bg2); color: var(--text-bright);
-    border: 1px solid var(--line); border-radius: 9px;
-    padding: 7px 10px; font-size: 0.76rem; font-family: inherit;
-    cursor: pointer; max-width: 160px;
-  }
-  #diff-select:disabled { opacity: 0.4; cursor: default; }
-
-  #load-btn {
-    display: flex; align-items: center; gap: 6px;
-    background: var(--bg3); border: 1px solid var(--line);
-    color: var(--text-bright); font-weight: 600; font-size: 0.76rem;
-    padding: 8px 13px; border-radius: 9px; cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
-    white-space: nowrap;
-  }
-  #load-btn:hover { background: var(--bg2); border-color: var(--accent); }
-  #file-input { display: none; }
-
   /* ── Stage ─────────────────────────────────────────────────────── */
   #stage-wrap {
     grid-row: 2;
@@ -164,40 +100,6 @@
   }
   #kiai-tag.show { opacity: 1; }
 
-  /* Drag highlight ring drawn over the whole stage, always available for drop */
-  #drop-ring {
-    position: absolute; inset: 0; z-index: 20;
-    border: 2px dashed var(--accent);
-    border-radius: 16px;
-    background: rgba(232,193,74,0.06);
-    display: none;
-    pointer-events: none;
-  }
-  #stage-wrap.drag #drop-ring { display: block; }
-
-  /* Empty state — lives INSIDE the stage, not a separate screen */
-  #empty-state {
-    position: absolute; inset: 0; z-index: 4;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    text-align: center; padding: 24px;
-    background: radial-gradient(600px 400px at 50% 40%, rgba(255,255,255,0.03), transparent 70%);
-  }
-  #empty-state .glyph { width: 62px; height: 62px; position: relative; margin-bottom: 14px; }
-  #empty-state .glyph .don, #empty-state .glyph .kat {
-    position: absolute; top: 50%; left: 50%; border-radius: 50%; transform: translate(-50%,-50%);
-  }
-  #empty-state .glyph .don { width: 46px; height: 46px; border: 4px solid var(--don); box-shadow: 0 0 22px var(--don-glow); }
-  #empty-state .glyph .kat { width: 62px; height: 62px; border: 4px solid var(--kat); opacity: 0.55; animation: pulse-ring 2.2s ease-in-out infinite; }
-  @keyframes pulse-ring { 0%,100% { transform: translate(-50%,-50%) scale(1); opacity: 0.55; } 50% { transform: translate(-50%,-50%) scale(1.12); opacity: 0.12; } }
-  #empty-state h1 { font-size: 1.02rem; color: var(--text-bright); font-weight: 700; margin-bottom: 6px; }
-  #empty-state p { font-size: 0.78rem; color: var(--text-dim); line-height: 1.5; margin-bottom: 16px; max-width: 320px; }
-  #empty-state .browse-btn {
-    background: var(--bg3); border: 1px solid var(--line); color: var(--text-bright);
-    font-weight: 600; font-size: 0.78rem; padding: 9px 18px; border-radius: 999px; cursor: pointer;
-  }
-  #empty-state .browse-btn:hover { background: var(--bg2); border-color: var(--accent); }
-  #empty-state .err { margin-top: 12px; font-size: 0.74rem; color: var(--don); display: none; max-width: 340px; }
-
   #loading-overlay {
     position: absolute; inset: 0; z-index: 10;
     display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
@@ -212,37 +114,8 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   #loading-overlay .msg { font-size: 0.78rem; color: var(--text-dim); }
 
-  /* ── Transport controls (always present; dimmed until a map is loaded) ── */
-  #controls {
-    grid-row: 3;
-    background: linear-gradient(180deg, var(--bg1), var(--bg2));
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 12px 16px 14px;
-    display: flex; flex-direction: column; gap: 9px;
-    transition: opacity 0.2s ease;
-  }
-  #controls.disabled { opacity: 0.45; pointer-events: none; }
-
-  #seek-row { display: flex; align-items: center; gap: 10px; }
-  #time-cur, #time-dur { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text-dim); min-width: 40px; }
-  #time-cur { color: var(--text-bright); text-align: right; }
-
-  #seek {
-    -webkit-appearance: none; appearance: none;
-    flex: 1; height: 6px; border-radius: 999px; background: var(--bg3);
-    outline: none; cursor: pointer;
-  }
-  #seek::-webkit-slider-runnable-track { height: 6px; border-radius: 999px; background: var(--bg3); }
-  #seek::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%;
-    background: var(--accent); border: 2px solid #0a0c12; margin-top: -4.5px;
-    box-shadow: 0 0 0 3px rgba(232,193,74,0.18);
-  }
-  #seek::-moz-range-track { height: 6px; border-radius: 999px; background: var(--bg3); }
-  #seek::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: var(--accent); border: 2px solid #0a0c12; }
-
-  #btn-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  /* .tbtn is reused by the pause/results overlays, kept even though the
+     transport bar that originally used it is gone. */
   .tbtn {
     background: var(--bg3); border: 1px solid var(--line); color: var(--text-bright);
     cursor: pointer; border-radius: 10px; padding: 8px 11px;
@@ -251,43 +124,11 @@
   }
   .tbtn:hover { background: var(--bg2); border-color: var(--accent); }
   .tbtn:active { transform: scale(0.94); }
-  #btn-play { width: 42px; height: 42px; font-size: 1rem; border-color: var(--kat); }
-  #btn-play:hover { background: rgba(63,182,207,0.14); }
-
-  .sv-toggle.active { background: var(--accent); border-color: var(--accent); color: #1a1400; }
-  .sv-toggle.active:hover { background: var(--accent); }
-
-  .ctl-group { display: flex; align-items: center; gap: 7px; }
-  .ctl-label { font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.04em; text-transform: uppercase; }
-  #speed-select {
-    background: var(--bg3); color: var(--text); border: 1px solid var(--line);
-    border-radius: 8px; padding: 5px 7px; font-size: 0.76rem; font-family: 'JetBrains Mono', monospace; cursor: pointer;
-  }
-  #volume {
-    -webkit-appearance: none; appearance: none; width: 74px; height: 5px;
-    border-radius: 999px; background: var(--bg3); cursor: pointer;
-  }
-  #volume::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--text-dim); margin-top: -3.5px; }
-  .spacer { flex: 1; }
 
   ::selection { background: rgba(232,193,74,0.35); }
 
-  #btn-test-play {
-    display: flex; align-items: center; gap: 6px;
-    background: linear-gradient(135deg, rgba(232,73,58,0.18), rgba(63,182,207,0.18));
-    border: 1px solid var(--line);
-    color: var(--text-bright); font-weight: 700; font-size: 0.76rem;
-    padding: 8px 13px; border-radius: 9px; cursor: pointer;
-    transition: border-color 0.15s ease, transform 0.1s ease;
-    white-space: nowrap;
-  }
-  #btn-test-play:hover:not(:disabled) { border-color: var(--accent); }
-  #btn-test-play:active:not(:disabled) { transform: scale(0.97); }
-  #btn-test-play:disabled { opacity: 0.35; cursor: default; }
-
-  /* Hide chrome entirely while actually playing — the stage (1fr row)
-     naturally expands to fill the freed space since these rows collapse. */
-  #app.testing #topbar,
+  /* Hide any lingering chrome while actually playing — the stage (1fr row)
+     naturally expands to fill the freed space since this row collapses. */
   #app.testing #controls { display: none; }
 
   #test-hud {
@@ -374,53 +215,22 @@
 
   @media (max-width: 640px) {
     #app { padding: 10px 10px 12px; gap: 8px; }
-    .brand .mark { font-size: 1.05rem; }
-    #meta-inline { display: none; }
-    #btn-row { justify-content: center; }
-    .ctl-label { display: none; }
   }
 </style>
 </head>
 <body>
 
 <div id="app">
-  <div id="topbar">
-    <div class="brand"><span class="mark">太鼓 Preview</span><span class="sub">osu!taiko .osz previewer</span></div>
-    <div id="meta-inline" class="empty">
-      <div class="title" id="m-title">No map loaded</div>
-      <div class="sub-line" id="m-sub"><span>Drop a .osz anywhere on the stage</span></div>
-    </div>
-    <div id="topbar-actions">
-      <div class="segmented" id="mode-toggle">
-        <button id="mode-single" class="active" type="button">Single</button>
-        <button id="mode-all" type="button">All diffs</button>
-      </div>
-      <select id="diff-select" disabled><option>No difficulties</option></select>
-      <button id="btn-test-play" type="button" disabled title="Play the map yourself">🎮 Test Play</button>
-      <button id="load-btn" type="button">📁 Load .osz</button>
-      <input type="file" id="file-input" accept=".osz">
-    </div>
-  </div>
-
   <div id="stage-wrap">
     <div id="stage-inner">
       <div id="stage-bg"></div>
       <canvas id="playfield"></canvas>
       <div id="kiai-tag">KIAI</div>
     </div>
-    <div id="drop-ring"></div>
-
-    <div id="empty-state">
-      <div class="glyph"><div class="kat"></div><div class="don"></div></div>
-      <h1>Drop an .osz here</h1>
-      <p>Load a beatmap package to watch its taiko chart scroll in sync with the song, right on this screen — nothing to install, nothing uploaded.</p>
-      <button class="browse-btn" id="browse-btn" type="button">Choose a file</button>
-      <div class="err" id="dz-error"></div>
-    </div>
 
     <div id="loading-overlay">
       <div class="spinner"></div>
-      <div class="msg" id="loading-msg">Reading package…</div>
+      <div class="msg" id="loading-msg">Downloading and reading map…</div>
     </div>
 
     <!-- ── Test Play HUD — only visible while actually playing the map ── -->
@@ -462,52 +272,9 @@
         </div>
         <div class="res-actions">
           <button class="tbtn" id="btn-test-retry" type="button">↺ Retry</button>
-          <button class="tbtn" id="btn-test-back" type="button">Back to preview</button>
+          <button class="tbtn" id="btn-test-back" type="button">✕ Quit</button>
         </div>
       </div>
-    </div>
-  </div>
-
-  <div id="controls" class="disabled">
-    <div id="seek-row">
-      <span id="time-cur">0:00</span>
-      <input type="range" id="seek" min="0" max="1000" value="0" step="1">
-      <span id="time-dur">0:00</span>
-    </div>
-    <div id="btn-row">
-      <button class="tbtn" id="btn-restart" title="Restart">⏮</button>
-      <button class="tbtn" id="btn-back" title="Back 5s">«</button>
-      <button class="tbtn" id="btn-play" title="Play / Pause">▶</button>
-      <button class="tbtn" id="btn-fwd" title="Forward 5s">»</button>
-
-      <div class="ctl-group">
-        <span class="ctl-label">Speed</span>
-        <select id="speed-select">
-          <option value="0.5">0.5×</option>
-          <option value="0.75">0.75×</option>
-          <option value="1" selected>1×</option>
-          <option value="1.25">1.25×</option>
-          <option value="1.5">1.5×</option>
-          <option value="2">2×</option>
-        </select>
-      </div>
-
-      <div class="ctl-group">
-        <span class="ctl-label">Vol</span>
-        <input type="range" id="volume" min="0" max="1" step="0.01" value="0.8">
-      </div>
-
-      <div class="ctl-group">
-        <button class="tbtn sv-toggle" id="btn-constant-sv" type="button" title="Ignore green-line SV changes — scroll speed stays flat">Const SV</button>
-      </div>
-
-      <div class="ctl-group">
-        <span class="ctl-label">SV ×</span>
-        <input type="range" id="sv-mult" min="0.25" max="3" step="0.05" value="1">
-        <span class="ctl-label" id="sv-mult-label" style="min-width:34px;text-align:right;">1.00×</span>
-      </div>
-
-      <div class="spacer"></div>
     </div>
   </div>
 </div>
@@ -530,7 +297,6 @@ function getBaseSpeedForBPM(bpm) { return BASE_SPEED_PER_BPM * (bpm || 120); }
 
 const DON_RGB = [235, 74, 50];
 const KAT_RGB = [74, 144, 173];
-const LANE_ACCENTS = ['#e8c14a', '#3fb6cf', '#e8493a', '#8a92cc', '#6fbf73', '#c77dd1'];
 
 // ── .osu parsing ─────────────────────────────────────────────────────
 function parseOSU(text) {
@@ -640,12 +406,10 @@ function getBPMAt(mapData, t) {
 }
 function getSVAt(mapData, t) {
   let sv = 1.0;
-  if (!S.constantSV) {
-    for (const p of mapData.svPoints) {
-      if (p.time <= t) sv = p.sv; else break;
-    }
+  for (const p of mapData.svPoints) {
+    if (p.time <= t) sv = p.sv; else break;
   }
-  return sv * S.svMultiplier;
+  return sv;
 }
 function getBeatSegmentAt(mapData, t) {
   const pts = mapData.uninheritedPoints;
@@ -693,9 +457,6 @@ const S = {
   diffs: [],            // [{path, mapData}], ascending by note count
   activeDiff: null,      // the diff shown in the selector / used for meta+kiai
   mapData: null,
-  mode: 'single',        // 'single' | 'all'
-  constantSV: false,     // ignore green-line SV, scroll flat at 1.0×
-  svMultiplier: 1,       // global scroll-speed multiplier applied on top
   audioCtx: null,
   audioBuffer: null,
   audioSource: null,
@@ -706,7 +467,6 @@ const S = {
   playStartRealTime: 0,
   playStartMapTime: 0,
   playbackRate: 1,
-  seeking: false,
   // Test Play
   testPlay: false,
   testNotes: null,
@@ -724,7 +484,7 @@ ctx.imageSmoothingEnabled = false; // note sprites are simple flat circles — s
 let _bgGradient = null; // rebuilt only when canvas size changes, not every frame
 
 function activeLaneCount() {
-  return (S.mode === 'all' && S.diffs.length > 1) ? S.diffs.length : 1;
+  return 1; // "all diffs" stacked view was preview-only tooling, removed — always single lane now
 }
 
 const STAGE_ASPECT = 16 / 9; // matches the VIEW OSB coordinate space (854 wide against a 480-tall field)
@@ -943,24 +703,10 @@ function render() {
   ctx.fillStyle = _bgGradient;
   ctx.fillRect(0, 0, cw, ch);
 
-  // Fewer visible notes-ahead when stacking many lanes at once — cuts the
-  // total per-frame draw calls roughly in proportion to lane count, since
-  // each lane draws its own set of upcoming notes.
-  const lanes = S.mode === 'all' ? S.diffs.length : 1;
-  const previewWindow = lanes > 6 ? 6000 : lanes > 3 ? 8000 : 12000;
-
-  if (S.mode === 'all' && S.diffs.length > 1) {
-    const n = S.diffs.length;
-    const gap = 3;
-    const bandH = (ch - gap * (n - 1)) / n;
-    S.diffs.forEach((d, i) => {
-      const top = i * (bandH + gap);
-      const label = d.mapData.version || ('Diff ' + (i + 1));
-      renderBand(d.mapData, ct, top, bandH, label, LANE_ACCENTS[i % LANE_ACCENTS.length], ch, previewWindow);
-    });
-  } else {
-    renderBand(S.mapData, ct, 0, ch, null, null, ch, previewWindow);
-  }
+  // Single lane only — the old "all diffs" stacked preview mode was
+  // preview-tooling, not gameplay, and was removed.
+  const previewWindow = 12000;
+  renderBand(S.mapData, ct, 0, ch, null, null, ch, previewWindow);
 
   // one continuous hit line spanning the whole stage — shared "now" marker
   const hitCx = xToCanvas(HIT_X);
@@ -1004,14 +750,6 @@ function updateKiaiTag(ct) {
 // ══════════════════════════════════════════════════════════════════════
 //  PLAYBACK ENGINE
 // ══════════════════════════════════════════════════════════════════════
-function fmtTime(ms) {
-  if (!isFinite(ms) || ms < 0) ms = 0;
-  const totalSec = Math.floor(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return m + ':' + String(s).padStart(2, '0');
-}
-
 function stopAudioSource() {
   if (S.audioSource) {
     try { S.audioSource.onended = null; S.audioSource.stop(); } catch (e) {}
@@ -1023,7 +761,6 @@ function startPlayback() {
   if (!S.mapData) return;
   if (S.isPlaying) return;
   S.isPlaying = true;
-  document.getElementById('btn-play').textContent = '⏸';
   S.playStartRealTime = performance.now();
   S.playStartMapTime = S.currentTime;
 
@@ -1045,39 +782,7 @@ function startPlayback() {
 
 function pausePlayback() {
   S.isPlaying = false;
-  document.getElementById('btn-play').textContent = '▶';
   stopAudioSource();
-}
-
-function seekTo(ms) {
-  S.currentTime = Math.max(0, Math.min(ms, S.duration));
-  S.playStartMapTime = S.currentTime;
-  S.playStartRealTime = performance.now();
-  if (S.isPlaying && S.audioCtx && S.audioBuffer) {
-    stopAudioSource();
-    const src = S.audioCtx.createBufferSource();
-    src.buffer = S.audioBuffer;
-    src.playbackRate.value = S.playbackRate;
-    src.connect(S.gainNode);
-    const offsetSec = S.currentTime / 1000;
-    if (offsetSec < src.buffer.duration) {
-      src.start(0, offsetSec);
-      S.audioSource = src;
-    }
-  }
-  updateTimeUI();
-  render();
-}
-
-function setPlaybackRate(rate) {
-  if (S.isPlaying) {
-    const elapsed = (performance.now() - S.playStartRealTime) * S.playbackRate;
-    S.currentTime = S.playStartMapTime + elapsed;
-    S.playStartMapTime = S.currentTime;
-    S.playStartRealTime = performance.now();
-  }
-  S.playbackRate = rate;
-  if (S.audioSource) S.audioSource.playbackRate.value = rate;
 }
 
 function playbackLoop(now) {
@@ -1090,54 +795,26 @@ function playbackLoop(now) {
     if (S.testPlay) finishTestPlay(true);
   }
   if (S.testPlay) advanceTestMisses();
-  updateTimeUI();
   render();
   if (S.isPlaying) requestAnimationFrame(playbackLoop);
 }
 
-function updateTimeUI() {
-  document.getElementById('time-cur').textContent = fmtTime(S.currentTime);
-  if (!S.seeking) {
-    document.getElementById('seek').value = String(Math.round(S.currentTime));
-  }
-}
-
 // ══════════════════════════════════════════════════════════════════════
-//  LOADING .osz — everything happens in place, inside the same screen
+//  LOADING .osz — arrives as a File built from bytes sent over postMessage
+//  by the song select screen (see the embed bridge at the bottom of this
+//  file). There's no file picker or drag-drop target anymore.
 // ══════════════════════════════════════════════════════════════════════
 const stageWrap = document.getElementById('stage-wrap');
-const fileInput = document.getElementById('file-input');
-const dzError = document.getElementById('dz-error');
-const emptyState = document.getElementById('empty-state');
 const loadingOverlay = document.getElementById('loading-overlay');
 const loadingMsg = document.getElementById('loading-msg');
-const controlsEl = document.getElementById('controls');
-const metaInline = document.getElementById('meta-inline');
 
-document.getElementById('load-btn').addEventListener('click', () => fileInput.click());
-document.getElementById('browse-btn').addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
-
-['dragenter', 'dragover'].forEach(evt => {
-  stageWrap.addEventListener(evt, (e) => { e.preventDefault(); stageWrap.classList.add('drag'); });
-});
-['dragleave', 'drop'].forEach(evt => {
-  stageWrap.addEventListener(evt, (e) => { e.preventDefault(); stageWrap.classList.remove('drag'); });
-});
-stageWrap.addEventListener('drop', (e) => {
-  const f = e.dataTransfer.files && e.dataTransfer.files[0];
-  if (f) handleFile(f);
-});
-document.addEventListener('dragover', (e) => e.preventDefault());
-document.addEventListener('drop', (e) => e.preventDefault());
 
 function showError(msg) {
-  dzError.textContent = msg;
-  dzError.style.display = 'block';
+  console.error(msg);
+  if (window.parent !== window) window.parent.postMessage({ type: 'taiko-load-error', message: msg }, '*');
 }
 
 async function handleFile(file) {
-  dzError.style.display = 'none';
   if (!/\.osz$/i.test(file.name)) {
     showError('That doesn\'t look like an .osz file — please pick an osu! beatmap package.');
     return;
@@ -1166,11 +843,6 @@ async function handleFile(file) {
     S.diffs = diffs;
     await loadAudioFromZip(zip, diffs[diffs.length - 1].mapData);
 
-    loadingMsg.textContent = 'Building preview…';
-    populateDiffSelect(diffs);
-    document.getElementById('diff-select').disabled = false;
-    emptyState.style.display = 'none';
-    controlsEl.classList.remove('disabled');
     await selectDiff(diffs[diffs.length - 1].path);
 
     loadingOverlay.classList.remove('show');
@@ -1186,7 +858,7 @@ async function loadAudioFromZip(zip, mapDataHint) {
     if (!S.audioCtx) {
       S.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       S.gainNode = S.audioCtx.createGain();
-      S.gainNode.gain.value = parseFloat(document.getElementById('volume').value);
+      S.gainNode.gain.value = 0.8; // no volume slider anymore; fixed sensible default
       S.gainNode.connect(S.audioCtx.destination);
     }
     let audioPath = null;
@@ -1206,18 +878,6 @@ async function loadAudioFromZip(zip, mapDataHint) {
   }
 }
 
-function populateDiffSelect(diffs) {
-  const sel = document.getElementById('diff-select');
-  sel.innerHTML = '';
-  for (const d of diffs) {
-    const opt = document.createElement('option');
-    opt.value = d.path;
-    opt.textContent = (d.mapData.version || d.path.split('/').pop()) + ' · ' + d.mapData.hitObjects.length;
-    sel.appendChild(opt);
-  }
-  sel.onchange = () => selectDiff(sel.value);
-}
-
 function computeOverallDuration() {
   let dur = 0;
   for (const d of S.diffs) dur = Math.max(dur, d.mapData.duration);
@@ -1235,22 +895,9 @@ async function selectDiff(path) {
   S.mapData = entry.mapData;
   S.duration = computeOverallDuration();
   S.currentTime = 0;
-  document.getElementById('diff-select').value = path;
-
-  metaInline.classList.remove('empty');
-  document.getElementById('m-title').textContent = (entry.mapData.title || 'Untitled') + (entry.mapData.artist ? ' — ' + entry.mapData.artist : '');
-  document.getElementById('m-sub').innerHTML =
-    '<span>♪ <b>' + Math.round(entry.mapData.bpm) + '</b> BPM</span>' +
-    '<span>● <b>' + entry.mapData.hitObjects.length + '</b> notes</span>' +
-    (entry.mapData.creator ? '<span>✎ <b>' + entry.mapData.creator + '</b></span>' : '');
-
-  document.getElementById('seek').max = String(Math.round(S.duration));
-  document.getElementById('time-dur').textContent = fmtTime(S.duration);
-  document.getElementById('btn-test-play').disabled = (S.mode !== 'single');
 
   await setBackground(entry.mapData.backgroundFile);
 
-  updateTimeUI();
   render();
   if (wasPlaying) startPlayback();
 }
@@ -1307,40 +954,6 @@ async function bakeBlurredBackground(blob) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-//  MODE TOGGLE — Single vs All-diffs stacked view
-// ══════════════════════════════════════════════════════════════════════
-const modeSingleBtn = document.getElementById('mode-single');
-const modeAllBtn = document.getElementById('mode-all');
-function setMode(mode) {
-  if (S.testPlay) exitTestPlay();
-  S.mode = mode;
-  modeSingleBtn.classList.toggle('active', mode === 'single');
-  modeAllBtn.classList.toggle('active', mode === 'all');
-  document.getElementById('btn-test-play').disabled = !(mode === 'single' && S.mapData);
-  render();
-}
-modeSingleBtn.addEventListener('click', () => setMode('single'));
-modeAllBtn.addEventListener('click', () => setMode('all'));
-
-// ══════════════════════════════════════════════════════════════════════
-//  SV OPTIONS — constant-SV mode + global multiplier
-// ══════════════════════════════════════════════════════════════════════
-const btnConstantSV = document.getElementById('btn-constant-sv');
-const svMultInput = document.getElementById('sv-mult');
-const svMultLabel = document.getElementById('sv-mult-label');
-
-btnConstantSV.addEventListener('click', () => {
-  S.constantSV = !S.constantSV;
-  btnConstantSV.classList.toggle('active', S.constantSV);
-  render();
-});
-svMultInput.addEventListener('input', () => {
-  S.svMultiplier = parseFloat(svMultInput.value);
-  svMultLabel.textContent = S.svMultiplier.toFixed(2) + '×';
-  render();
-});
-
-// ══════════════════════════════════════════════════════════════════════
 //  TEST PLAY — actually play the current single difficulty yourself.
 //  D/F = left kat/don, J/K = right don/kat (osu!taiko's default layout),
 //  plus on-screen drum zones for touch. Transport controls are hidden
@@ -1357,7 +970,7 @@ const appEl = document.getElementById('app');
 const testResultsEl = document.getElementById('test-results');
 
 function startTestPlay() {
-  if (S.mode !== 'single' || !S.mapData) return;
+  if (!S.mapData) return;
   pausePlayback();
   S.testNotes = S.mapData.hitObjects.map(n => ({ time: n.time, type: n.type, judged: false, result: null }));
   S.testStats = { great: 0, good: 0, miss: 0, combo: 0, maxCombo: 0, score: 0 };
@@ -1542,46 +1155,9 @@ document.querySelectorAll('.drum-zone').forEach(btn => {
   btn.addEventListener('pointerdown', trigger);
 });
 
-document.getElementById('btn-test-play').addEventListener('click', startTestPlay);
 document.getElementById('btn-test-exit').addEventListener('click', openPauseMenu);
 document.getElementById('btn-test-retry').addEventListener('click', () => { testResultsEl.classList.remove('show'); startTestPlay(); });
-document.getElementById('btn-test-back').addEventListener('click', () => {
-  testResultsEl.classList.remove('show');
-  S.currentTime = 0;
-  updateTimeUI();
-  render();
-});
-
-// ══════════════════════════════════════════════════════════════════════
-//  TRANSPORT UI WIRING
-// ══════════════════════════════════════════════════════════════════════
-document.getElementById('btn-play').addEventListener('click', () => {
-  if (!S.mapData) return;
-  S.isPlaying ? pausePlayback() : startPlayback();
-});
-document.getElementById('btn-restart').addEventListener('click', () => seekTo(0));
-document.getElementById('btn-back').addEventListener('click', () => seekTo(S.currentTime - 5000));
-document.getElementById('btn-fwd').addEventListener('click', () => seekTo(S.currentTime + 5000));
-
-const seekInput = document.getElementById('seek');
-seekInput.addEventListener('pointerdown', () => { S.seeking = true; });
-seekInput.addEventListener('input', () => { seekTo(parseFloat(seekInput.value)); });
-seekInput.addEventListener('pointerup', () => { S.seeking = false; });
-
-document.getElementById('speed-select').addEventListener('change', (e) => {
-  setPlaybackRate(parseFloat(e.target.value));
-});
-document.getElementById('volume').addEventListener('input', (e) => {
-  if (S.gainNode) S.gainNode.gain.value = parseFloat(e.target.value);
-});
-
-document.addEventListener('keydown', (e) => {
-  if (!S.mapData || S.testPlay) return;
-  if (e.target && (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT')) return;
-  if (e.code === 'Space') { e.preventDefault(); S.isPlaying ? pausePlayback() : startPlayback(); }
-  if (e.code === 'ArrowLeft') seekTo(S.currentTime - 5000);
-  if (e.code === 'ArrowRight') seekTo(S.currentTime + 5000);
-});
+document.getElementById('btn-test-back').addEventListener('click', quitTestPlay);
 
 window.addEventListener('resize', () => render());
 new ResizeObserver(() => render()).observe(stageWrap);
@@ -1606,7 +1182,6 @@ window.addEventListener('message', async (e) => {
       const match = S.diffs.find(d => (d.mapData.version || '').toLowerCase().includes(hint));
       if (match) await selectDiff(match.path);
     }
-    setMode('single');
     startTestPlay();
   } catch (err) {
     console.error('embed load failed:', err);
