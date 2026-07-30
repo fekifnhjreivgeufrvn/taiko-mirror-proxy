@@ -379,7 +379,7 @@ kbd{
         <input type="text" id="filterQuery" class="filter-input" placeholder="Search title, artist, mapper…">
         <select id="filterSort" class="filter-select">
           <option value="plays_desc">Most played</option>
-          <option value="ranked_desc">Newest ranked</option>
+          <option value="ranked_desc" selected>Newest ranked</option>
           <option value="favourites_desc">Most favourited</option>
           <option value="title_asc">Title A–Z</option>
           <option value="difficulty_desc">Hardest first</option>
@@ -509,7 +509,7 @@ let songsAreLive = false;
 const PAGE_SIZE = 30;
 const FILTERS = {
   query: '',
-  sort: 'plays_desc',
+  sort: 'ranked_desc',
   status: '1',       // '' = all statuses
   minStars: '', maxStars: '',
   minBpm: '', maxBpm: '',
