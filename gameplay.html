@@ -1041,9 +1041,23 @@ function startTestPlay() {
   startPlayback();
   // This whole flow starts from a postMessage, not a click inside this
   // frame, so keyboard focus may still be sitting in the parent document
-  // (e.g. on the Play button) — grab it here too as a backstop alongside
-  // the parent's own gameFrame.focus() call.
+  // (e.g. on the Play button). A single focus() call right here has been
+  // unreliable in practice — retry it over the next few frames in case
+  // something else (the frame still settling, a pending layout/paint) wins
+  // the race the first time.
+  grabFocus();
+}
+
+function grabFocus(attemptsLeft) {
+  if (attemptsLeft == null) attemptsLeft = 6;
   window.focus();
+  if (!document.body.hasAttribute('tabindex')) document.body.setAttribute('tabindex', '-1');
+  if (document.activeElement !== document.body) document.body.focus();
+  if (attemptsLeft > 0 && !document.hasFocus()) {
+    setTimeout(() => grabFocus(attemptsLeft - 1), 80);
+  } else {
+    console.log('[focus] hasFocus =', document.hasFocus(), '· activeElement =', document.activeElement && document.activeElement.tagName);
+  }
 }
 
 function exitTestPlay() {
@@ -1259,6 +1273,12 @@ document.getElementById('btn-test-back').addEventListener('click', quitTestPlay)
 
 window.addEventListener('resize', () => render());
 new ResizeObserver(() => render()).observe(stageWrap);
+
+// Belt-and-suspenders: a real click inside the frame always grants it
+// keyboard focus in every browser, no exceptions — so even if the
+// automatic grabFocus() calls above don't stick for some reason, clicking
+// anywhere on the stage guarantees keyboard input starts working.
+stageWrap.addEventListener('pointerdown', () => { window.focus(); document.body.focus(); });
 
 // ══════════════════════════════════════════════════════════════════════
 //  EMBED BRIDGE — lets a parent page (the song select screen) hand off a
