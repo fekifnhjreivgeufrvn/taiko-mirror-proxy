@@ -132,7 +132,7 @@
   #app.testing #controls { display: none; }
 
   #test-hud {
-    position: absolute; top: 10px; left: 12px; right: 12px; z-index: 6;
+    position: absolute; top: 10px; left: 12px; right: 12px; z-index: 7;
     display: none;
     align-items: flex-start; justify-content: space-between;
     pointer-events: none;
@@ -449,6 +449,13 @@ function goodWindowMs(od) {
   // Real osu!taiko's OK window is piecewise around OD5, not a flat line —
   // OD0: 120ms · OD5: 80ms · OD10: 50ms.
   return o <= 5 ? 120 - 8 * o : 110 - 6 * o;
+}
+function missWindowMs(od) {
+  const o = od == null ? 5 : od;
+  // The outer window: a press inside this range always resolves the locked
+  // note (Great/Good if timed and coloured right, otherwise Miss) instead of
+  // being ignored — OD0: 135ms · OD5: 95ms · OD10: 70ms, same piecewise shape.
+  return o <= 5 ? 135 - 8 * o : 120 - 5 * o;
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -1050,11 +1057,11 @@ document.getElementById('btn-pause-quit').addEventListener('click', quitTestPlay
 function advanceTestMisses() {
   const notes = S.testNotes;
   if (!notes) return;
-  const goodW = goodWindowMs(S.mapData.od);
+  const missW = missWindowMs(S.mapData.od);
   const ct = S.currentTime;
   while (S.testMissPtr < notes.length) {
     const n = notes[S.testMissPtr];
-    if (n.time + goodW >= ct) break;
+    if (n.time + missW >= ct) break;
     if (!n.judged) {
       n.judged = true;
       n.result = 'miss';
@@ -1084,14 +1091,32 @@ function judgeInput(color, simultBonus) {
   const od = S.mapData.od;
   const greatW = greatWindowMs(od);
   const goodW = goodWindowMs(od);
+  const missW = missWindowMs(od);
   const ct = S.currentTime;
   const diff = Math.abs(n.time - ct);
-  if (diff > goodW) return; // the locked note isn't in range yet — press is wasted, no penalty
+  if (diff > missW) return; // the locked note isn't in range yet — press is wasted, no penalty
 
   const nColor = n.type.indexOf('kat') !== -1 ? 'kat' : 'don';
-  if (nColor !== color) return; // wrong drum for the locked note — ignored, no penalty
-
   n.judged = true;
+  S.testMissPtr = idx + 1;
+
+  if (nColor !== color || diff > goodW) {
+    // Either the wrong drum for this note, or the right drum but outside
+    // even the Good window (still inside the wider Miss window though) —
+    // both resolve the note as a miss instead of being ignored. Without
+    // this, mashing every key nonstop is free: the correct drum eventually
+    // lands close enough to land in-window while everything else costs
+    // nothing, so you never actually need to read the chart or the rhythm.
+    // Consuming the note on the *first* press that reaches this window,
+    // right or wrong, means only one shot at it — mashing now costs combo.
+    n.result = 'miss';
+    S.testStats.miss++;
+    S.testStats.combo = 0;
+    spawnJudgePopup('MISS', 'var(--text-dim)');
+    updateTestHUD();
+    return;
+  }
+
   if (diff <= greatW) {
     n.result = 'great';
     S.testStats.great++;
@@ -1104,7 +1129,6 @@ function judgeInput(color, simultBonus) {
   S.testStats.combo++;
   S.testStats.maxCombo = Math.max(S.testStats.maxCombo, S.testStats.combo);
   S.testStats.score += (n.result === 'great' ? 300 : 150);
-  S.testMissPtr = idx + 1;
   updateTestHUD();
 }
 
