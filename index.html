@@ -882,7 +882,12 @@ window.addEventListener('message', (e) => {
     // Setting src/display alone doesn't move keyboard focus into the iframe —
     // it stays on whatever had it before (the Play button), so the iframe's
     // own keydown listeners never see anything until focus is moved here.
-    gameFrame.focus();
+    // A single call has proven unreliable in practice, so retry briefly.
+    let focusAttempts = 6;
+    (function grabFrameFocus(){
+      gameFrame.focus();
+      if (--focusAttempts > 0) setTimeout(grabFrameFocus, 80);
+    })();
   } else if (data.type === 'taiko-quit'){
     gameFrame.style.display = 'none';
     gameFrame.src = 'about:blank';
