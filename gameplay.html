@@ -1000,6 +1000,11 @@ function startTestPlay() {
   S.currentTime = 0;
   render();
   startPlayback();
+  // This whole flow starts from a postMessage, not a click inside this
+  // frame, so keyboard focus may still be sitting in the parent document
+  // (e.g. on the Play button) — grab it here too as a backstop alongside
+  // the parent's own gameFrame.focus() call.
+  window.focus();
 }
 
 function exitTestPlay() {
