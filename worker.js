@@ -50,17 +50,23 @@ export default {
         cf: { cacheTtl: 30, cacheEverything: true }, // light edge caching, matches hinai's own 30-60s TTLs
       });
 
-      // arrayBuffer (not text!) so binary .osz downloads pass through byte-for-byte —
-      // decoding as text and re-encoding would corrupt the zip.
-      const body = await upstreamRes.arrayBuffer();
+      // Stream the body straight through rather than buffering it into an
+      // ArrayBuffer first. Search responses are small JSON either way, but
+      // beatmap downloads can be tens of MB (video backgrounds, dense
+      // hitsounds) — fully buffering those risks the Worker's memory/CPU
+      // limits, and hitting them mid-request just resets the connection,
+      // which the browser reports as a bare "Load failed" with no detail.
+      // Streaming avoids ever holding the whole file in memory at once.
       const headers = {
         ...corsHeaders(),
         "Content-Type": upstreamRes.headers.get("Content-Type") || "application/octet-stream",
       };
       const disposition = upstreamRes.headers.get("Content-Disposition");
       if (disposition) headers["Content-Disposition"] = disposition;
+      const contentLength = upstreamRes.headers.get("Content-Length");
+      if (contentLength) headers["Content-Length"] = contentLength;
 
-      return new Response(body, { status: upstreamRes.status, headers });
+      return new Response(upstreamRes.body, { status: upstreamRes.status, headers });
     } catch (err) {
       return new Response(JSON.stringify({ error: "proxy fetch failed", detail: String(err) }), {
         status: 502,
