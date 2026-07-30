@@ -151,6 +151,20 @@
   }
   #btn-test-exit:hover { border-color: var(--don); background: rgba(232,73,58,0.15); }
 
+  #test-skip-btn {
+    position: absolute; right: 14px; bottom: 16px; z-index: 7;
+    display: none; align-items: center; gap: 6px;
+    padding: 9px 16px; border-radius: 999px;
+    background: rgba(10,12,18,0.7); border: 1px solid var(--line); color: var(--text-bright);
+    font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 700; font-size: 0.78rem;
+    cursor: pointer; pointer-events: auto;
+    transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  }
+  #test-skip-btn.show { display: none; }
+  #app.testing #test-skip-btn.show { display: flex; }
+  #test-skip-btn:hover { border-color: var(--accent); background: rgba(232,193,74,0.15); }
+  #test-skip-btn:active { transform: scale(0.95); }
+
   #test-touch-zones {
     position: absolute; inset: 0; z-index: 6;
     display: none;
@@ -242,6 +256,8 @@
       <button id="btn-test-exit" type="button" title="Pause (Esc)">⏸</button>
     </div>
 
+    <button id="test-skip-btn" type="button">Skip ⏩</button>
+
     <div id="test-touch-zones">
       <button class="drum-zone kat" data-code="KeyD">かKAT<span class="key-hint">D</span></button>
       <button class="drum-zone don" data-code="KeyF">ドDON<span class="key-hint">F</span></button>
@@ -312,6 +328,7 @@ function parseOSU(text) {
     svPoints: [],
     od: 5,
     mode: 0, // 0=osu std, 1=taiko, 2=ctb, 3=mania — maps predating this field are std
+    audioLeadIn: 0,
   };
   let section = '';
   for (const raw of lines) {
@@ -325,6 +342,7 @@ function parseOSU(text) {
     if (section === 'general') {
       if (line.startsWith('AudioFilename:')) result.audioFilename = line.split(':').slice(1).join(':').trim();
       if (line.startsWith('Mode:')) { const m = parseInt(line.slice(5).trim(), 10); if (!isNaN(m)) result.mode = m; }
+      if (line.startsWith('AudioLeadIn:')) { const v = parseInt(line.slice(12).trim(), 10); if (!isNaN(v)) result.audioLeadIn = v; }
     }
     if (section === 'difficulty') {
       if (line.startsWith('OverallDifficulty:')) {
@@ -780,10 +798,19 @@ function startPlayback() {
     src.buffer = S.audioBuffer;
     src.playbackRate.value = S.playbackRate;
     src.connect(S.gainNode);
-    const offsetSec = S.currentTime / 1000;
-    if (offsetSec < src.buffer.duration) {
-      src.start(0, offsetSec);
+    if (S.currentTime < 0) {
+      // Still in the lead-in — schedule the track to start once real time
+      // catches up to map-time 0, rather than handing Web Audio a negative
+      // offset (which throws) or starting the track early.
+      const delaySec = (-S.currentTime / S.playbackRate) / 1000;
+      src.start(S.audioCtx.currentTime + delaySec, 0);
       S.audioSource = src;
+    } else {
+      const offsetSec = S.currentTime / 1000;
+      if (offsetSec < src.buffer.duration) {
+        src.start(0, offsetSec);
+        S.audioSource = src;
+      }
     }
   }
   requestAnimationFrame(playbackLoop);
@@ -804,6 +831,7 @@ function playbackLoop(now) {
     if (S.testPlay) finishTestPlay(true);
   }
   if (S.testPlay) advanceTestMisses();
+  if (S.testPlay) updateSkipButton();
   render();
   if (S.isPlaying) requestAnimationFrame(playbackLoop);
 }
@@ -997,7 +1025,18 @@ function startTestPlay() {
   testResultsEl.classList.remove('show');
   appEl.classList.add('testing');
   updateTestHUD();
-  S.currentTime = 0;
+
+  // A short lead-in before map-time 0, sized to whichever is larger: the
+  // map's own AudioLeadIn, or a minimum enough for the very first note to
+  // scroll in from off-screen instead of appearing already on the hit line.
+  // Only kicks in if the first note is actually that close to the start —
+  // maps with a naturally long intro already have plenty of runway and
+  // start at 0 (the skip button covers those instead).
+  const firstNoteTime = S.testNotes.length ? S.testNotes[0].time : 0;
+  const requiredGap = Math.min(5000, Math.max(2000, S.mapData.audioLeadIn || 0));
+  S.testSkipTargetTime = firstNoteTime - requiredGap;
+  S.currentTime = Math.min(0, S.testSkipTargetTime);
+
   render();
   startPlayback();
   // This whole flow starts from a postMessage, not a click inside this
@@ -1150,6 +1189,26 @@ function updateTestHUD() {
   document.getElementById('test-acc').textContent = acc.toFixed(2) + '%';
 }
 
+// The skip button only appears while there's meaningfully more runway left
+// before the action starts than a normal lead-in would give — covers both
+// our own artificial lead-in (trivial, stays hidden) and a genuinely long
+// intro in the map itself (the actual "skip long intros" case).
+function updateSkipButton() {
+  const btn = document.getElementById('test-skip-btn');
+  if (!S.testPlay || S.testSkipTargetTime == null) { btn.classList.remove('show'); return; }
+  const remaining = S.testSkipTargetTime - S.currentTime;
+  btn.classList.toggle('show', remaining > 1500);
+}
+
+function skipIntro() {
+  if (!S.testPlay || S.testSkipTargetTime == null) return;
+  pausePlayback();
+  S.currentTime = S.testSkipTargetTime;
+  document.getElementById('test-skip-btn').classList.remove('show');
+  render();
+  startPlayback();
+}
+
 // keyboard input — held-key timestamps let us flag near-simultaneous
 // same-color presses (the real big-note "kacchan" double-hit) for flair.
 // We match on the physical key position (e.code) rather than the character
@@ -1194,6 +1253,7 @@ document.querySelectorAll('.drum-zone').forEach(btn => {
 });
 
 document.getElementById('btn-test-exit').addEventListener('click', openPauseMenu);
+document.getElementById('test-skip-btn').addEventListener('click', skipIntro);
 document.getElementById('btn-test-retry').addEventListener('click', () => { testResultsEl.classList.remove('show'); startTestPlay(); });
 document.getElementById('btn-test-back').addEventListener('click', quitTestPlay);
 
