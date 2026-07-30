@@ -894,14 +894,26 @@ async function downloadOszBytes(setId){
   const proxyUrl = PROXY_BASE ? `${PROXY_BASE}/beatmaps/download/${setId}` : null;
   async function tryUrl(url){
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`download returned ${res.status}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.arrayBuffer();
   }
   try{
     return await tryUrl(directUrl);
   }catch(directErr){
-    if (!proxyUrl) throw directErr;
-    return await tryUrl(proxyUrl);
+    // The direct browser->hinai request failing here is expected in most
+    // setups — that endpoint isn't CORS-enabled for fetch(), which is the
+    // whole reason the worker fallback exists. Log it at low volume for
+    // context, but don't treat it as the interesting failure on its own.
+    console.warn('[download] direct fetch failed (expected without CORS on that endpoint):', directErr.message);
+    if (!proxyUrl){
+      throw new Error(`No proxy configured, and the direct request failed: ${directErr.message}`);
+    }
+    try{
+      return await tryUrl(proxyUrl);
+    }catch(proxyErr){
+      console.error('[download] proxy fallback also failed:', proxyErr.message);
+      throw new Error(`Proxy download failed: ${proxyErr.message}`);
+    }
   }
 }
 
