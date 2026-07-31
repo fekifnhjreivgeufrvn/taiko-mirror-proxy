@@ -381,7 +381,11 @@ const MOCK_SONGS = [
 
 // --- Live data: same hinai v1 search API the song-select screen uses ---
 const PAGE_SIZE = 30;
-const POOL_PAGES = 8; // ~240 raw sets fetched — hybrid filtering below trims a chunk of these
+const POOL_PAGES = 8; // ~240 raw sets fetched (scattered, see below) — hybrid filtering below trims a chunk of these
+// Rough ceiling on how deep the ranked taiko catalog goes. Offsets past the
+// real end just come back short/empty and are ignored — this only needs to
+// be "big enough" to spread picks across the whole catalog, not exact.
+const CATALOG_OFFSET_CEILING = 4000;
 
 function buildSearchParams(offset){
   const p = new URLSearchParams();
@@ -390,7 +394,12 @@ function buildSearchParams(offset){
   p.set('status', '1'); // ranked — keeps the pool to recognisable, finished charts
   p.set('amount', String(PAGE_SIZE));
   p.set('offset', String(offset));
-  p.set('sort', 'favourites_desc'); // bias toward well-known charts, fairer to guess
+  // Deliberately NOT favourites_desc/plays_desc — sorting by popularity and
+  // then taking the first few pages means the pool is always the same
+  // handful of most-favourited charts. 'id_desc' is a neutral ordering with
+  // no popularity signal; true randomness comes from scattering the offsets
+  // we sample (see loadPool), not from this sort field.
+  p.set('sort', 'id_desc');
   return p.toString();
 }
 function hinaiDirectUrl(offset){ return `https://mirror.hinamizawa.ai/api/v1/hinai/search?${buildSearchParams(offset)}`; }
@@ -435,7 +444,14 @@ function mapSet(set){
   // pool leans toward charts actually built around taiko: either most of the
   // set's diffs are taiko, or there are enough taiko diffs to be a real ladder.
   const taikoShare = taikoDiffs.length / allDiffs.length;
-  const isHybrid = taikoDiffs.length < 2 && taikoShare < 0.5;
+  // Keep the set if EITHER signal says it's genuinely taiko-focused: most of
+  // its diffs are taiko, OR it has a full-ish taiko ladder (4+ diffs) even if
+  // that's a minority of a bigger multi-mode collab set. Otherwise it's a
+  // hybrid — e.g. 1-3 taiko diffs bolted onto a std marathon — and gets
+  // skipped. (Previously this used AND, so a low-share set only got caught
+  // if it *also* had under 2 taiko diffs — a 2-diff taiko ladder buried in a
+  // 20-diff std set passed right through.)
+  const isHybrid = taikoShare < 0.5 && taikoDiffs.length < 4;
   if (isHybrid) return null;
 
   return {
@@ -468,10 +484,25 @@ async function loadPool(){
   const pool = [];
   let source = 'direct';
   try{
-    for (let page = 0; page < POOL_PAGES; page++){
-      const { data, source: s } = await fetchPage(page * PAGE_SIZE);
-      source = s;
-      if (!data.length) break;
+    // Scatter offsets across the whole catalog instead of walking pages
+    // 0,1,2,3… in order. Sequential pages of *any* sorted list cluster
+    // together (all newest, all most-favourited, whatever) — picking random
+    // offsets is what actually makes the pool random, independent of
+    // whatever the API's sort field does.
+    const maxOffsetSteps = Math.max(1, Math.floor(CATALOG_OFFSET_CEILING / PAGE_SIZE));
+    const offsets = new Set();
+    while (offsets.size < POOL_PAGES){
+      offsets.add(Math.floor(Math.random() * maxOffsetSteps) * PAGE_SIZE);
+    }
+
+    for (const offset of offsets){
+      let data;
+      try{
+        ({ data, source } = await fetchPage(offset));
+      }catch(pageErr){
+        console.warn('[guessgame] offset fetch failed, skipping:', offset, pageErr);
+        continue; // one bad/out-of-range offset shouldn't sink the whole pool
+      }
       data.forEach(set => {
         const song = mapSet(set);
         if (song && !seen.has(song.setId)){
@@ -479,20 +510,18 @@ async function loadPool(){
           pool.push(song);
         }
       });
-      if (data.length < PAGE_SIZE) break;
     }
     if (!pool.length) throw new Error('empty pool');
 
-    // hinai's docs warn that some search params (sort included) can fail
-    // *silently* — a 200 with unfiltered/default-ordered data rather than an
-    // error — so don't trust sort=favourites_desc blindly. Every result has
-    // its real Favourites count, so re-sort by that ourselves; this is a
-    // no-op if the API's sort already worked, and a fix if it didn't.
-    pool.sort((a,b) => b.favourites - a.favourites);
+    // Shuffle (Fisher–Yates) rather than sort by favourites/plays — no
+    // popularity ranking, no "top N" truncation. Every fetched chart has an
+    // equal shot at being picked; pickSong() then draws uniformly from this.
+    for (let i = pool.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
 
-    // Keep the game biased toward charts people are likely to actually
-    // recognize rather than the long tail of the fetched batch.
-    POOL = pool.slice(0, Math.min(pool.length, 100));
+    POOL = pool;
     poolIsLive = true;
     setStatusBanner(source);
   }catch(err){
