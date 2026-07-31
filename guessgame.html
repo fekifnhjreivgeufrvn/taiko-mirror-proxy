@@ -381,7 +381,7 @@ const MOCK_SONGS = [
 
 // --- Live data: same hinai v1 search API the song-select screen uses ---
 const PAGE_SIZE = 30;
-const POOL_PAGES = 5; // ~150 sets, plenty of variety without hammering the API
+const POOL_PAGES = 8; // ~240 raw sets fetched — hybrid filtering below trims a chunk of these
 
 function buildSearchParams(offset){
   const p = new URLSearchParams();
@@ -419,7 +419,8 @@ async function fetchPage(offset){
 }
 
 function mapSet(set){
-  const taikoDiffs = (set.ChildrenBeatmaps || [])
+  const allDiffs = set.ChildrenBeatmaps || [];
+  const taikoDiffs = allDiffs
     .filter(b => b.Mode === 1)
     .sort((a,b) => a.DifficultyRating - b.DifficultyRating)
     .map(b => ({
@@ -427,12 +428,23 @@ function mapSet(set){
       stars: Math.round(b.DifficultyRating*10)/10,
     }));
   if (!taikoDiffs.length) return null;
+
+  // hinai's mode=1 filter only guarantees *some* taiko diff exists in the set,
+  // not that the set is a taiko-focused mapset — a std marathon set with one
+  // bolted-on taiko diff still passes. Skip those "hybrid" sets so the guessing
+  // pool leans toward charts actually built around taiko: either most of the
+  // set's diffs are taiko, or there are enough taiko diffs to be a real ladder.
+  const taikoShare = taikoDiffs.length / allDiffs.length;
+  const isHybrid = taikoDiffs.length < 2 && taikoShare < 0.5;
+  if (isHybrid) return null;
+
   return {
     title: set.Title,
     artist: set.Artist,
     mapper: set.Creator,
     diffs: taikoDiffs,
     setId: set.SetID,
+    favourites: Number(set.Favourites) || 0,
   };
 }
 
@@ -470,7 +482,17 @@ async function loadPool(){
       if (data.length < PAGE_SIZE) break;
     }
     if (!pool.length) throw new Error('empty pool');
-    POOL = pool;
+
+    // hinai's docs warn that some search params (sort included) can fail
+    // *silently* — a 200 with unfiltered/default-ordered data rather than an
+    // error — so don't trust sort=favourites_desc blindly. Every result has
+    // its real Favourites count, so re-sort by that ourselves; this is a
+    // no-op if the API's sort already worked, and a fix if it didn't.
+    pool.sort((a,b) => b.favourites - a.favourites);
+
+    // Keep the game biased toward charts people are likely to actually
+    // recognize rather than the long tail of the fetched batch.
+    POOL = pool.slice(0, Math.min(pool.length, 100));
     poolIsLive = true;
     setStatusBanner(source);
   }catch(err){
