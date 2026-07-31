@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaikoSB — Guess the Song</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap');
+
+:root{
+  /* Same neutral charcoal palette as the song-select screen */
+  --bg0:   #1f1f1f;
+  --bg1:   #262626;
+  --bg2:   #2d2d2d;
+  --bg3:   #383838;
+  --bg4:   #454545;
+  --panel: #2a2a2a;
+  --border: #141414;
+  --border-soft: #363636;
+
+  --accent:      #7aa84a;
+  --accent-dim:  #5e8438;
+  --accent-glow: rgba(122,168,74,0.30);
+
+  --warm:        #d97757;
+  --warm-dim:    #a85a40;
+  --warm-glow:   rgba(217,119,87,0.28);
+
+  --don:    #d94747;
+  --kat:    #5cc7c7;
+
+  --kantan:     #7aa84a;
+  --futsuu:     #d9b95c;
+  --muzukashii: #d97757;
+  --oni:        #d94747;
+  --ura:        #b48ad9;
+
+  --text:        #d4d4d4;
+  --text-dim:    #8a8a8a;
+  --text-bright: #f0f0f0;
+
+  --r: 6px;
+  --r-sm: 4px;
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+html, body{ height:100%; overflow:hidden; }
+
+body{
+  font-family:'Quicksand','Nunito',sans-serif;
+  background:
+    radial-gradient(ellipse 900px 500px at 16% 10%, rgba(122,168,74,0.10), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 90% 94%, rgba(217,119,87,0.09), transparent 60%),
+    var(--bg0);
+  color:var(--text);
+  height:100vh;
+  overflow:hidden;
+  position:relative;
+}
+
+#grain{
+  position:absolute; inset:0; z-index:0; pointer-events:none; overflow:hidden;
+  background-image:
+    linear-gradient(rgba(122,168,74,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(122,168,74,0.05) 1px, transparent 1px);
+  background-size:44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 40%, black 40%, transparent 92%);
+          mask-image: radial-gradient(ellipse 80% 80% at 50% 40%, black 40%, transparent 92%);
+}
+.drift-note{
+  position:absolute; right:-60px; border-radius:50%;
+  filter:saturate(0.7) brightness(0.9);
+  animation: driftNote linear infinite;
+  will-change: transform;
+}
+@keyframes driftNote{
+  from{ transform:translateX(0); }
+  to  { transform:translateX(-130vw); }
+}
+
+.screen{ position:relative; z-index:2; height:100%; display:flex; flex-direction:column; }
+
+/* ---------- top bar ---------- */
+.topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 36px 12px;
+  border-bottom:1px solid var(--border-soft);
+  background:rgba(38,38,38,0.5);
+}
+.brand{ display:flex; align-items:center; gap:14px; }
+.brand-icon{
+  font-size:1.9rem;
+  filter:drop-shadow(0 0 16px var(--accent-glow));
+  animation: logoBob 4.5s ease-in-out infinite;
+}
+@keyframes logoBob{
+  0%,100%{ transform:translateY(0) rotate(0deg); }
+  50%{ transform:translateY(-3px) rotate(-2deg); }
+}
+.brand-text h1{
+  font-family:'Nunito',sans-serif; font-size:1.5rem; font-weight:800;
+  letter-spacing:0.5px; color:var(--text-bright); line-height:1;
+  display:flex; align-items:baseline; gap:8px;
+}
+.brand-text h1 .accent{ color:var(--accent); text-shadow:0 0 20px var(--accent-glow); }
+.brand-text h1 small{
+  font-family:'Nunito',sans-serif; font-size:0.62rem; font-weight:700;
+  letter-spacing:2.5px; color:var(--text-dim); text-transform:uppercase;
+}
+.eyebrow{
+  display:inline-flex; align-items:center; gap:6px;
+  font-family:'Nunito',sans-serif; font-size:0.56rem; font-weight:800;
+  letter-spacing:1.5px; text-transform:uppercase;
+  color:var(--accent); background:rgba(122,168,74,0.12);
+  border:1px solid rgba(122,168,74,0.35); border-radius:20px;
+  padding:2px 9px; margin-top:3px;
+}
+.searchhint{ display:flex; gap:10px; align-items:center; }
+.searchhint .hint{
+  display:flex; align-items:center; gap:5px;
+  font-size:0.62rem; font-weight:600; color:var(--text-dim); letter-spacing:0.3px;
+}
+kbd{
+  background:var(--bg3); border:1px solid var(--border); border-radius:5px;
+  padding:2px 7px; font-size:0.62rem; font-weight:700; color:var(--text-bright);
+  font-family:'Nunito',sans-serif;
+}
+
+/* ---------- main ---------- */
+.main{ flex:1; display:flex; align-items:center; justify-content:center; min-height:0; padding:20px 36px; }
+
+.quizwrap{ width:100%; max-width:620px; display:flex; flex-direction:column; gap:14px; min-height:0; }
+
+.statsrow{ display:flex; gap:8px; }
+.stat-chip{
+  background:var(--bg1); border:1px solid var(--border-soft); border-radius:var(--r-sm);
+  padding:8px 8px; flex:1; text-align:center;
+}
+.stat-chip .val{ font-family:'Nunito'; font-weight:800; font-size:1.05rem; color:var(--text-bright); }
+.stat-chip .lbl{ font-size:0.56rem; font-weight:700; color:var(--text-dim); letter-spacing:1.5px; margin-top:2px; }
+
+.card{
+  background:var(--panel); border:1px solid var(--border-soft); border-radius:var(--r);
+  padding:22px 24px; display:flex; flex-direction:column; gap:16px;
+  box-shadow:0 10px 40px -18px rgba(0,0,0,0.6);
+}
+
+.card-heading{
+  font-family:'Nunito'; font-weight:800; font-size:0.68rem; letter-spacing:1.5px;
+  text-transform:uppercase; color:var(--text-dim); text-align:center;
+}
+
+.difflist{ display:flex; flex-direction:column; gap:7px; }
+.diff-pill{
+  display:flex; align-items:center; gap:12px;
+  background:var(--bg2); border:1px solid var(--border-soft); border-left:3px solid var(--diff-color, var(--accent));
+  border-radius:var(--r-sm); padding:9px 14px;
+}
+.pill-dot{
+  width:22px; height:22px; border-radius:50%; flex-shrink:0;
+  background:radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), transparent 60%), var(--diff-color);
+  border:2px solid rgba(255,255,255,0.15);
+}
+.pill-name{ font-weight:700; font-size:0.86rem; flex:1; color:var(--text-bright); }
+.pill-stars{ font-size:0.68rem; font-weight:700; color:var(--diff-color); letter-spacing:1px; }
+
+.answer-wrap{ position:relative; }
+.answer-input{
+  width:100%;
+  background:var(--bg2); border:1px solid var(--border-soft); border-radius:var(--r-sm);
+  color:var(--text-bright); font-family:'Nunito'; font-size:0.9rem; font-weight:700;
+  padding:12px 14px; transition:border-color 0.15s, box-shadow 0.15s;
+}
+.answer-input:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+.answer-input::placeholder{ color:var(--text-dim); font-weight:600; }
+.answer-input.correct{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+.answer-input.wrong{ border-color:var(--don); box-shadow:0 0 0 3px rgba(217,71,71,0.28); animation:shake 0.3s; }
+@keyframes shake{
+  0%,100%{ transform:translateX(0); }
+  25%{ transform:translateX(-5px); }
+  75%{ transform:translateX(5px); }
+}
+
+.suggestions{
+  position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:10;
+  background:var(--bg2); border:1px solid var(--border-soft); border-radius:var(--r-sm);
+  max-height:230px; overflow-y:auto; box-shadow:0 12px 30px -10px rgba(0,0,0,0.7);
+  display:none;
+}
+.suggestions.open{ display:block; }
+.suggestion-item{
+  padding:9px 14px; cursor:pointer; border-bottom:1px solid var(--border-soft);
+}
+.suggestion-item:last-child{ border-bottom:none; }
+.suggestion-item .s-title{ font-size:0.8rem; font-weight:700; color:var(--text-bright); }
+.suggestion-item .s-artist{ font-size:0.66rem; font-weight:600; color:var(--text-dim); margin-top:1px; }
+.suggestion-item:hover, .suggestion-item.highlighted{ background:var(--bg3); }
+.suggestion-item mark{ background:none; color:var(--accent); }
+
+.feedback{
+  min-height:1.1rem; font-size:0.76rem; font-weight:700; text-align:center;
+}
+.feedback.ok{ color:var(--accent); }
+.feedback.bad{ color:var(--don); }
+.feedback.info{ color:var(--text-dim); }
+
+.reveal{
+  display:none; text-align:center; padding:6px 4px 2px; border-top:1px dashed var(--border-soft);
+}
+.reveal.shown{ display:block; }
+.reveal .r-title{ font-family:'Nunito'; font-weight:800; font-size:1.1rem; color:var(--text-bright); }
+.reveal .r-artist{ font-size:0.76rem; font-weight:600; color:var(--text-dim); margin-top:2px; }
+.reveal .r-mapper{ font-size:0.68rem; font-weight:600; color:var(--text-dim); margin-top:6px; }
+.reveal .r-mapper b{ color:var(--text); font-weight:800; }
+
+.actions{ display:flex; gap:10px; }
+.actions .btn{ flex:1; justify-content:center; text-align:center; }
+
+.btn{
+  font-family:'Nunito'; font-weight:700; font-size:0.72rem; letter-spacing:0.5px;
+  background:var(--bg3); border:1px solid var(--border); color:var(--text);
+  padding:10px 18px; border-radius:20px; cursor:pointer; transition:all 0.15s;
+  display:flex; align-items:center; gap:6px;
+}
+.btn:hover{ background:var(--bg4); border-color:var(--accent); color:var(--text-bright); box-shadow:0 0 10px var(--accent-glow); }
+.btn:active{ transform:scale(0.96); }
+.btn:disabled{ opacity:0.4; cursor:not-allowed; box-shadow:none; }
+.btn.primary{
+  background:linear-gradient(135deg, var(--accent), var(--accent-dim)); border:none; color:#fff;
+}
+.btn.primary:hover{ filter:brightness(1.12); box-shadow:0 0 14px var(--accent-glow); }
+.btn.warm{ border-color:var(--warm-dim); }
+.btn.warm:hover{ border-color:var(--warm); box-shadow:0 0 10px var(--warm-glow); }
+.btn.next{
+  background:linear-gradient(135deg, var(--don), #a01528); border:none; color:#fff;
+}
+.btn.next:hover{ filter:brightness(1.12); }
+
+.hintline{ text-align:center; font-size:0.7rem; font-weight:600; color:var(--text-dim); min-height:1rem; }
+.hintline b{ color:var(--text-bright); }
+
+/* ---------- bottom bar ---------- */
+.bottombar{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:14px 36px 20px; border-top:1px solid var(--border-soft);
+  background:rgba(38,38,38,0.5);
+}
+</style>
+</head>
+<body>
+<div id="grain"></div>
+
+<div class="screen">
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-icon">🥁</div>
+      <div class="brand-text">
+        <div class="eyebrow">osu!taiko</div>
+        <h1>TAIKO<span class="accent">SB</span><small>Guess the Song</small></h1>
+      </div>
+    </div>
+    <div class="searchhint">
+      <div class="hint">Confirm <kbd>Enter</kbd></div>
+      <div class="hint">Suggestions <kbd>↑</kbd><kbd>↓</kbd></div>
+      <div class="hint" id="statusBanner"></div>
+      <div class="hint" id="reloadPool" style="cursor:pointer; text-decoration:underline;">🔄 new pool</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="quizwrap">
+      <div class="statsrow">
+        <div class="stat-chip"><div class="val" id="statScore">0</div><div class="lbl">SCORE</div></div>
+        <div class="stat-chip"><div class="val" id="statRounds">0/0</div><div class="lbl">CORRECT</div></div>
+        <div class="stat-chip"><div class="val" id="statStreak">0</div><div class="lbl">STREAK</div></div>
+        <div class="stat-chip"><div class="val" id="statBest">0</div><div class="lbl">BEST STREAK</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-heading" id="cardHeading">Name this chart from its difficulties</div>
+
+        <div class="difflist" id="diffList"></div>
+
+        <div class="answer-wrap">
+          <input type="text" id="guessInput" class="answer-input" placeholder="Type the song title…" autocomplete="off" spellcheck="false">
+          <div class="suggestions" id="suggestions"></div>
+        </div>
+
+        <div class="feedback" id="feedback"></div>
+
+        <div class="reveal" id="reveal">
+          <div class="r-title" id="revealTitle"></div>
+          <div class="r-artist" id="revealArtist"></div>
+          <div class="r-mapper">Mapped by <b id="revealMapper"></b> · <span id="revealStars"></span></div>
+        </div>
+
+        <div class="hintline" id="hintLine"></div>
+
+        <div class="actions" id="actionsGuessing">
+          <button class="btn primary" id="submitBtn">✅ Submit</button>
+          <button class="btn warm" id="hintBtn">💡 Hint: artist</button>
+          <button class="btn" id="giveUpBtn">🏳 Give up</button>
+        </div>
+        <div class="actions" id="actionsNext" style="display:none;">
+          <button class="btn next" id="nextBtn">Next song ▶</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottombar">
+    <div class="btn" id="backBtn">◀ Back to Song Select</div>
+    <div class="hint" style="color:var(--text-dim);">Difficulty names are shown; the title is the mystery.</div>
+  </div>
+</div>
+
+<script>
+const DIFF_COLORS = {
+  Kantan:     {name:'Easy'},
+  Futsuu:     {name:'Normal'},
+  Muzukashii: {name:'Hard'},
+  Oni:        {name:'Oni'},
+  Ura:        {name:'Ura Oni'}
+};
+
+// osu!'s own star-rating colour spectrum — same table used on song-select.
+const DIFF_SPECTRUM = [
+  { stars: 0.1, rgb: [0x42,0x90,0xfb] },
+  { stars: 1.25, rgb: [0x4f,0xc0,0xff] },
+  { stars: 2.0, rgb: [0x4f,0xff,0xd5] },
+  { stars: 2.5, rgb: [0x7c,0xff,0x4f] },
+  { stars: 3.3, rgb: [0xf6,0xf0,0x5c] },
+  { stars: 4.2, rgb: [0xff,0x80,0x68] },
+  { stars: 4.9, rgb: [0xff,0x4e,0x6f] },
+  { stars: 5.8, rgb: [0xc6,0x45,0xb8] },
+  { stars: 6.7, rgb: [0x65,0x63,0xde] },
+  { stars: 7.7, rgb: [0x18,0x15,0x8e] },
+  { stars: 9.0, rgb: [0x00,0x00,0x00] },
+];
+function starColor(stars){
+  const s = Math.max(0, stars || 0);
+  if (s <= DIFF_SPECTRUM[0].stars) return `rgb(${DIFF_SPECTRUM[0].rgb.join(',')})`;
+  for (let i = 1; i < DIFF_SPECTRUM.length; i++){
+    if (s <= DIFF_SPECTRUM[i].stars || i === DIFF_SPECTRUM.length - 1){
+      const lo = DIFF_SPECTRUM[i-1], hi = DIFF_SPECTRUM[i];
+      const t = Math.min(1, (s - lo.stars) / (hi.stars - lo.stars));
+      const rgb = lo.rgb.map((c, k) => Math.round(c + (hi.rgb[k] - c) * t));
+      return `rgb(${rgb.join(',')})`;
+    }
+  }
+}
+function starString(n){ return '★'.repeat(Math.max(0, Math.round(n))); }
+
+function bucketDifficultyName(stars){
+  if (stars < 2) return 'Kantan';
+  if (stars < 3.3) return 'Futsuu';
+  if (stars < 4.8) return 'Muzukashii';
+  if (stars < 6.5) return 'Oni';
+  return 'Ura';
+}
+
+// Small offline fallback pool, used only if the live API is unreachable.
+const MOCK_SONGS = [
+  { title:"Senbonzakura", artist:"Kurousa-P feat. Hatsune Miku", mapper:"Sarawatlism",
+    diffs:[ {name:'Kantan',stars:3},{name:'Futsuu',stars:5},{name:'Muzukashii',stars:7},{name:'Oni',stars:9} ] },
+  { title:"Freedom Dive", artist:"xi", mapper:"Nathan",
+    diffs:[ {name:'Futsuu',stars:4},{name:'Muzukashii',stars:6},{name:'Oni',stars:9},{name:'Ura',stars:10} ] },
+  { title:"Through the Fire and Flames", artist:"DragonForce", mapper:"Andrea",
+    diffs:[ {name:'Muzukashii',stars:6},{name:'Oni',stars:9} ] },
+  { title:"Bad Apple!!", artist:"Alstroemeria Records", mapper:"Riana",
+    diffs:[ {name:'Kantan',stars:2},{name:'Futsuu',stars:4},{name:'Muzukashii',stars:6},{name:'Oni',stars:7} ] },
+  { title:"Marisa Stole the Precious Thing", artist:"IOSYS", mapper:"Byakugan249",
+    diffs:[ {name:'Futsuu',stars:3},{name:'Muzukashii',stars:6},{name:'Oni',stars:8} ] },
+  { title:"Odds & Ends", artist:"Kagerou Project", mapper:"Frostmourne",
+    diffs:[ {name:'Kantan',stars:3},{name:'Futsuu',stars:5},{name:'Oni',stars:8} ] },
+  { title:"Redial", artist:"P4Koo", mapper:"Doormat",
+    diffs:[ {name:'Muzukashii',stars:5},{name:'Oni',stars:8},{name:'Ura',stars:9} ] },
+  { title:"Rolling Girl", artist:"wowaka feat. Hatsune Miku", mapper:"Kroytz",
+    diffs:[ {name:'Kantan',stars:2},{name:'Futsuu',stars:4},{name:'Muzukashii',stars:6},{name:'Oni',stars:8} ] },
+];
+
+// --- Live data: same hinai v1 search API the song-select screen uses ---
+const PAGE_SIZE = 30;
+const POOL_PAGES = 5; // ~150 sets, plenty of variety without hammering the API
+
+function buildSearchParams(offset){
+  const p = new URLSearchParams();
+  p.set('query', '');
+  p.set('mode', '1'); // taiko only
+  p.set('status', '1'); // ranked — keeps the pool to recognisable, finished charts
+  p.set('amount', String(PAGE_SIZE));
+  p.set('offset', String(offset));
+  p.set('sort', 'favourites_desc'); // bias toward well-known charts, fairer to guess
+  return p.toString();
+}
+function hinaiDirectUrl(offset){ return `https://mirror.hinamizawa.ai/api/v1/hinai/search?${buildSearchParams(offset)}`; }
+
+// Same worker as index.html — fill in / leave blank to match that file.
+const PROXY_BASE = "https://taikomirrorproxy.kiwi-martan.workers.dev";
+function hinaiProxyUrl(offset){ return PROXY_BASE ? `${PROXY_BASE}/beatmaps/search?${buildSearchParams(offset)}` : null; }
+
+async function fetchFromUrl(url){
+  console.log('[fetch] requesting:', url);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`request returned ${res.status}`);
+  const data = await res.json();
+  if (!Array.isArray(data)) throw new Error('unexpected response shape');
+  return data;
+}
+
+async function fetchPage(offset){
+  try{
+    return { data: await fetchFromUrl(hinaiDirectUrl(offset)), source:'direct' };
+  }catch(directErr){
+    const proxyUrl = hinaiProxyUrl(offset);
+    if (!proxyUrl) throw directErr;
+    return { data: await fetchFromUrl(proxyUrl), source:'proxy' };
+  }
+}
+
+function mapSet(set){
+  const taikoDiffs = (set.ChildrenBeatmaps || [])
+    .filter(b => b.Mode === 1)
+    .sort((a,b) => a.DifficultyRating - b.DifficultyRating)
+    .map(b => ({
+      name: b.DiffName || bucketDifficultyName(b.DifficultyRating),
+      stars: Math.round(b.DifficultyRating*10)/10,
+    }));
+  if (!taikoDiffs.length) return null;
+  return {
+    title: set.Title,
+    artist: set.Artist,
+    mapper: set.Creator,
+    diffs: taikoDiffs,
+    setId: set.SetID,
+  };
+}
+
+let POOL = [];
+let poolIsLive = false;
+let recentlyUsed = []; // avoids repeating the same song back-to-back
+
+function setStatusBanner(mode){
+  const el = document.getElementById('statusBanner');
+  if (mode === 'direct'){ el.textContent = 'LIVE — hinai (direct)'; el.style.color = 'var(--kat)'; }
+  else if (mode === 'proxy'){ el.textContent = 'LIVE — hinai (via proxy)'; el.style.color = 'var(--futsuu)'; }
+  else { el.textContent = 'OFFLINE — sample pool'; el.style.color = 'var(--don)'; }
+}
+
+async function loadPool(){
+  const heading = document.getElementById('cardHeading');
+  heading.textContent = 'Loading a pool of charts…';
+  disableActions(true);
+
+  const seen = new Set();
+  const pool = [];
+  let source = 'direct';
+  try{
+    for (let page = 0; page < POOL_PAGES; page++){
+      const { data, source: s } = await fetchPage(page * PAGE_SIZE);
+      source = s;
+      if (!data.length) break;
+      data.forEach(set => {
+        const song = mapSet(set);
+        if (song && !seen.has(song.setId)){
+          seen.add(song.setId);
+          pool.push(song);
+        }
+      });
+      if (data.length < PAGE_SIZE) break;
+    }
+    if (!pool.length) throw new Error('empty pool');
+    POOL = pool;
+    poolIsLive = true;
+    setStatusBanner(source);
+  }catch(err){
+    console.error('[guessgame] pool fetch failed, falling back to sample data:', err);
+    POOL = MOCK_SONGS;
+    poolIsLive = false;
+    setStatusBanner('offline');
+  }
+
+  disableActions(false);
+  nextRound();
+}
+
+// ── round state ──────────────────────────────────────────────────────
+let current = null;
+let attemptCount = 0;
+let hintUsed = false;
+let roundResolved = false;
+
+let score = 0, correctRounds = 0, totalRounds = 0, streak = 0, bestStreak = 0;
+
+function updateStats(){
+  document.getElementById('statScore').textContent = score;
+  document.getElementById('statRounds').textContent = `${correctRounds}/${totalRounds}`;
+  document.getElementById('statStreak').textContent = streak;
+  document.getElementById('statBest').textContent = bestStreak;
+}
+
+function disableActions(disabled){
+  document.getElementById('submitBtn').disabled = disabled;
+  document.getElementById('hintBtn').disabled = disabled;
+  document.getElementById('giveUpBtn').disabled = disabled;
+  document.getElementById('guessInput').disabled = disabled;
+}
+
+function pickSong(){
+  if (POOL.length === 1) return POOL[0];
+  let choice;
+  let tries = 0;
+  do{
+    choice = POOL[Math.floor(Math.random() * POOL.length)];
+    tries++;
+  } while (recentlyUsed.includes(choice.setId ?? choice.title) && tries < 20);
+  recentlyUsed.push(choice.setId ?? choice.title);
+  if (recentlyUsed.length > Math.min(8, POOL.length - 1)) recentlyUsed.shift();
+  return choice;
+}
+
+function renderDiffs(song){
+  const list = document.getElementById('diffList');
+  list.innerHTML = '';
+  song.diffs.forEach(d => {
+    const color = starColor(d.stars);
+    const pill = document.createElement('div');
+    pill.className = 'diff-pill';
+    pill.style.setProperty('--diff-color', color);
+    const dot = document.createElement('div');
+    dot.className = 'pill-dot';
+    dot.style.setProperty('--diff-color', color);
+    const name = document.createElement('div');
+    name.className = 'pill-name';
+    name.textContent = d.name;
+    const stars = document.createElement('div');
+    stars.className = 'pill-stars';
+    stars.textContent = starString(Math.min(d.stars, 5)) + (d.stars > 5 ? ' +' + (d.stars - 5).toFixed(1) : '');
+    pill.appendChild(dot); pill.appendChild(name); pill.appendChild(stars);
+    list.appendChild(pill);
+  });
+}
+
+function nextRound(){
+  current = pickSong();
+  attemptCount = 0;
+  hintUsed = false;
+  roundResolved = false;
+
+  document.getElementById('cardHeading').textContent = 'Name this chart from its difficulties';
+  renderDiffs(current);
+
+  const input = document.getElementById('guessInput');
+  input.value = '';
+  input.classList.remove('correct','wrong');
+  input.disabled = false;
+  closeSuggestions();
+
+  document.getElementById('feedback').textContent = '';
+  document.getElementById('feedback').className = 'feedback';
+  document.getElementById('hintLine').innerHTML = '';
+  document.getElementById('reveal').classList.remove('shown');
+
+  document.getElementById('actionsGuessing').style.display = 'flex';
+  document.getElementById('actionsNext').style.display = 'none';
+  document.getElementById('hintBtn').disabled = false;
+
+  input.focus();
+}
+
+// ── normalization & matching ────────────────────────────────────────
+function normalize(str){
+  return String(str || '')
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[^a-z0-9'"! ]/gi, ' ') // punctuation-insensitive
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isCorrect(guess, song){
+  return normalize(guess) === normalize(song.title);
+}
+
+function resolveRound(state){ // state: 'correct' | 'gaveup'
+  roundResolved = true;
+  totalRounds++;
+
+  const input = document.getElementById('guessInput');
+  input.disabled = true;
+  closeSuggestions();
+
+  const fb = document.getElementById('feedback');
+  if (state === 'correct'){
+    const pts = (attemptCount <= 1 && !hintUsed) ? 2 : 1;
+    score += pts;
+    correctRounds++;
+    streak++;
+    bestStreak = Math.max(bestStreak, streak);
+    input.classList.add('correct');
+    fb.textContent = `🎉 Correct! +${pts} point${pts>1?'s':''}`;
+    fb.className = 'feedback ok';
+  } else {
+    streak = 0;
+    fb.textContent = 'The answer is revealed below.';
+    fb.className = 'feedback info';
+  }
+
+  document.getElementById('revealTitle').textContent = current.title;
+  document.getElementById('revealArtist').textContent = current.artist;
+  document.getElementById('revealMapper').textContent = current.mapper || 'unknown';
+  document.getElementById('revealStars').textContent =
+    current.diffs.map(d => `${d.name} ${d.stars}★`).join(' · ');
+  document.getElementById('reveal').classList.add('shown');
+
+  document.getElementById('actionsGuessing').style.display = 'none';
+  document.getElementById('actionsNext').style.display = 'flex';
+  document.getElementById('nextBtn').focus();
+
+  updateStats();
+}
+
+function submitGuess(){
+  if (roundResolved) return;
+  const input = document.getElementById('guessInput');
+  const guess = input.value.trim();
+  if (!guess) return;
+  attemptCount++;
+
+  if (isCorrect(guess, current)){
+    resolveRound('correct');
+  } else {
+    input.classList.remove('correct');
+    input.classList.add('wrong');
+    setTimeout(() => input.classList.remove('wrong'), 320);
+    const fb = document.getElementById('feedback');
+    fb.textContent = attemptCount >= 3 ? 'Still not it — try a suggestion from the dropdown, or give up.' : 'Not quite — try again.';
+    fb.className = 'feedback bad';
+  }
+}
+
+document.getElementById('submitBtn').addEventListener('click', submitGuess);
+document.getElementById('giveUpBtn').addEventListener('click', () => { if (!roundResolved) resolveRound('gaveup'); });
+document.getElementById('hintBtn').addEventListener('click', () => {
+  if (roundResolved || hintUsed) return;
+  hintUsed = true;
+  document.getElementById('hintBtn').disabled = true;
+  document.getElementById('hintLine').innerHTML = `Artist: <b>${escapeHtml(current.artist)}</b>`;
+});
+document.getElementById('nextBtn').addEventListener('click', nextRound);
+document.getElementById('backBtn').addEventListener('click', () => { window.location.href = 'index.html'; });
+document.getElementById('reloadPool').addEventListener('click', loadPool);
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ── autocomplete dropdown ────────────────────────────────────────────
+let suggestionItems = [];
+let highlightedIndex = -1;
+
+function uniqueTitlesMatching(query){
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const seenTitles = new Set();
+  const out = [];
+  for (const song of POOL){
+    const t = song.title;
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seenTitles.has(key)) continue;
+    if (key.includes(q)){
+      seenTitles.add(key);
+      out.push(song);
+      if (out.length >= 8) break;
+    }
+  }
+  return out;
+}
+
+function renderSuggestions(query){
+  const box = document.getElementById('suggestions');
+  suggestionItems = uniqueTitlesMatching(query);
+  highlightedIndex = -1;
+  if (!suggestionItems.length){
+    box.classList.remove('open');
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = '';
+  suggestionItems.forEach((song, i) => {
+    const item = document.createElement('div');
+    item.className = 'suggestion-item';
+    const titleEl = document.createElement('div');
+    titleEl.className = 's-title';
+    titleEl.textContent = song.title;
+    const artistEl = document.createElement('div');
+    artistEl.className = 's-artist';
+    artistEl.textContent = song.artist;
+    item.appendChild(titleEl); item.appendChild(artistEl);
+    item.addEventListener('mousedown', (e) => { // mousedown fires before input blur
+      e.preventDefault();
+      selectSuggestion(i);
+    });
+    box.appendChild(item);
+  });
+  box.classList.add('open');
+}
+
+function selectSuggestion(i){
+  if (i < 0 || i >= suggestionItems.length) return;
+  const input = document.getElementById('guessInput');
+  input.value = suggestionItems[i].title;
+  input.classList.remove('wrong');
+  closeSuggestions();
+  input.focus();
+}
+
+function closeSuggestions(){
+  const box = document.getElementById('suggestions');
+  box.classList.remove('open');
+  box.innerHTML = '';
+  suggestionItems = [];
+  highlightedIndex = -1;
+}
+
+function updateHighlight(){
+  const box = document.getElementById('suggestions');
+  [...box.children].forEach((el, i) => el.classList.toggle('highlighted', i === highlightedIndex));
+  const activeEl = box.children[highlightedIndex];
+  if (activeEl) activeEl.scrollIntoView({ block:'nearest' });
+}
+
+const guessInput = document.getElementById('guessInput');
+guessInput.addEventListener('input', () => {
+  if (roundResolved) return;
+  guessInput.classList.remove('wrong','correct');
+  renderSuggestions(guessInput.value);
+});
+guessInput.addEventListener('keydown', (e) => {
+  const box = document.getElementById('suggestions');
+  const open = box.classList.contains('open');
+  if (e.key === 'ArrowDown'){
+    if (open){ e.preventDefault(); highlightedIndex = Math.min(highlightedIndex+1, suggestionItems.length-1); updateHighlight(); }
+  } else if (e.key === 'ArrowUp'){
+    if (open){ e.preventDefault(); highlightedIndex = Math.max(highlightedIndex-1, 0); updateHighlight(); }
+  } else if (e.key === 'Enter'){
+    e.preventDefault();
+    if (open && highlightedIndex >= 0){ selectSuggestion(highlightedIndex); }
+    else { closeSuggestions(); submitGuess(); }
+  } else if (e.key === 'Escape'){
+    closeSuggestions();
+  }
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.answer-wrap')) closeSuggestions();
+});
+
+// Ambient drifting notes, same as song-select.
+(function spawnDriftNotes(){
+  const fx = document.getElementById('grain');
+  if (!fx) return;
+  const colors = ['var(--don)', 'var(--kat)', 'var(--accent)'];
+  const COUNT = 9;
+  for (let i = 0; i < COUNT; i++){
+    const dot = document.createElement('div');
+    dot.className = 'drift-note';
+    const size = 20 + Math.round(Math.random() * 26);
+    const top = Math.round(Math.random() * 92);
+    const duration = 16 + Math.random() * 16;
+    const delay = -Math.random() * duration;
+    dot.style.width = size + 'px';
+    dot.style.height = size + 'px';
+    dot.style.top = top + '%';
+    dot.style.background = colors[i % colors.length];
+    dot.style.border = '3px solid rgba(255,255,255,0.12)';
+    dot.style.animationDuration = duration.toFixed(1) + 's';
+    dot.style.animationDelay = delay.toFixed(1) + 's';
+    dot.style.opacity = (0.10 + Math.random() * 0.14).toFixed(2);
+    fx.appendChild(dot);
+  }
+})();
+
+updateStats();
+loadPool();
+</script>
+</body>
+</html>
