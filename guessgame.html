@@ -245,6 +245,40 @@ kbd{
   padding:14px 36px 20px; border-top:1px solid var(--border-soft);
   background:rgba(38,38,38,0.5);
 }
+
+/* ---------- SR filter bar (same look as song-select's filters) ---------- */
+.filter-bar{
+  display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  padding:9px 10px; border-radius:var(--r);
+  background:var(--bg1); border:1px solid var(--border-soft);
+}
+.filter-range{ display:flex; align-items:center; gap:4px; }
+.filter-label{ font-size:0.62rem; font-weight:800; color:var(--text-dim); letter-spacing:0.5px; margin-right:2px; text-transform:uppercase; }
+.filter-dash{ color:var(--text-dim); font-size:0.7rem; }
+.filter-num{
+  width:52px; background:var(--bg2); border:1px solid var(--border-soft); border-radius:var(--r-sm);
+  color:var(--text-bright); font-family:'Nunito'; font-size:0.7rem; font-weight:600;
+  padding:6px 6px; text-align:center;
+}
+.filter-num::-webkit-inner-spin-button{ opacity:0.4; }
+.filter-num:disabled, .filter-apply:disabled{ opacity:0.4; cursor:not-allowed; }
+.filter-apply{
+  font-family:'Nunito'; font-size:0.66rem; font-weight:800; letter-spacing:0.5px; text-transform:uppercase;
+  color:#fff; background:var(--accent); border:1px solid var(--accent); border-radius:var(--r-sm);
+  padding:7px 14px; cursor:pointer; transition:filter 0.15s; margin-left:auto;
+}
+.filter-apply:hover{ filter:brightness(1.1); }
+.filter-note{ font-size:0.6rem; font-weight:600; color:var(--text-dim); width:100%; min-height:0.9rem; }
+
+/* ---------- results screen ---------- */
+.results-grid{ display:flex; gap:8px; flex-wrap:wrap; }
+.result-tile{
+  flex:1 1 40%; background:var(--bg2); border:1px solid var(--border-soft); border-radius:var(--r-sm);
+  padding:16px 10px; text-align:center;
+}
+.result-tile .val{ font-family:'Nunito'; font-weight:800; font-size:1.6rem; color:var(--text-bright); }
+.result-tile.highlight .val{ color:var(--accent); }
+.result-tile .lbl{ font-size:0.6rem; font-weight:700; color:var(--text-dim); letter-spacing:1.5px; margin-top:4px; text-transform:uppercase; }
 </style>
 </head>
 <body>
@@ -263,20 +297,29 @@ kbd{
       <div class="hint">Confirm <kbd>Enter</kbd></div>
       <div class="hint">Suggestions <kbd>↑</kbd><kbd>↓</kbd></div>
       <div class="hint" id="statusBanner"></div>
-      <div class="hint" id="reloadPool" style="cursor:pointer; text-decoration:underline;">🔄 new pool</div>
+      <div class="hint" id="reloadPool" style="cursor:pointer; text-decoration:underline;">🔄 restart run</div>
     </div>
   </div>
 
   <div class="main">
     <div class="quizwrap">
-      <div class="statsrow">
-        <div class="stat-chip"><div class="val" id="statScore">0</div><div class="lbl">SCORE</div></div>
-        <div class="stat-chip"><div class="val" id="statRounds">0/0</div><div class="lbl">CORRECT</div></div>
-        <div class="stat-chip"><div class="val" id="statStreak">0</div><div class="lbl">STREAK</div></div>
-        <div class="stat-chip"><div class="val" id="statBest">0</div><div class="lbl">BEST STREAK</div></div>
+      <div class="filter-bar">
+        <span class="filter-label">★ SR range</span>
+        <input type="number" id="filterMinStars" class="filter-num" min="0" max="15" step="0.1" placeholder="min">
+        <span class="filter-dash">–</span>
+        <input type="number" id="filterMaxStars" class="filter-num" min="0" max="15" step="0.1" placeholder="max">
+        <button class="filter-apply" id="filterApply">Apply &amp; restart</button>
+        <div class="filter-note" id="filterNote"></div>
       </div>
 
-      <div class="card">
+      <div class="statsrow">
+        <div class="stat-chip"><div class="val" id="statScore">0</div><div class="lbl">SCORE</div></div>
+        <div class="stat-chip"><div class="val" id="statRound">1/10</div><div class="lbl">ROUND</div></div>
+        <div class="stat-chip"><div class="val" id="statStreak">0</div><div class="lbl">STREAK</div></div>
+        <div class="stat-chip"><div class="val" id="statTime">0.0s</div><div class="lbl">TIME</div></div>
+      </div>
+
+      <div class="card" id="quizCard">
         <div class="card-heading" id="cardHeading">Name this chart from its difficulties</div>
 
         <div class="difflist" id="diffList"></div>
@@ -305,12 +348,25 @@ kbd{
           <button class="btn next" id="nextBtn">Next song ▶</button>
         </div>
       </div>
+
+      <div class="card" id="resultsCard" style="display:none;">
+        <div class="card-heading">Run complete — 10/10 rounds</div>
+        <div class="results-grid">
+          <div class="result-tile highlight"><div class="val" id="resFinalScore">0</div><div class="lbl">Final score</div></div>
+          <div class="result-tile"><div class="val" id="resCorrect">0/10</div><div class="lbl">Correct</div></div>
+          <div class="result-tile"><div class="val" id="resBestStreak">0</div><div class="lbl">Best streak</div></div>
+          <div class="result-tile"><div class="val" id="resAvgPts">0</div><div class="lbl">Avg pts / round</div></div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="playAgainBtn" style="flex:1; justify-content:center;">🔁 Play again</button>
+        </div>
+      </div>
     </div>
   </div>
 
   <div class="bottombar">
     <div class="btn" id="backBtn">◀ Back to Song Select</div>
-    <div class="hint" style="color:var(--text-dim);">Difficulty names are shown; the title is the mystery.</div>
+    <div class="hint" style="color:var(--text-dim);">10 rounds per run — the faster you guess, the more it's worth.</div>
   </div>
 </div>
 
@@ -381,11 +437,12 @@ const MOCK_SONGS = [
 
 // --- Live data: same hinai v1 search API the song-select screen uses ---
 const PAGE_SIZE = 30;
-const POOL_PAGES = 8; // ~240 raw sets fetched (scattered, see below) — hybrid filtering below trims a chunk of these
 // Rough ceiling on how deep the ranked taiko catalog goes. Offsets past the
 // real end just come back short/empty and are ignored — this only needs to
 // be "big enough" to spread picks across the whole catalog, not exact.
 const CATALOG_OFFSET_CEILING = 4000;
+
+const FILTERS = { minStars: '', maxStars: '' };
 
 function buildSearchParams(offset){
   const p = new URLSearchParams();
@@ -400,6 +457,13 @@ function buildSearchParams(offset){
   // no popularity signal; true randomness comes from scattering the offsets
   // we sample (see loadPool), not from this sort field.
   p.set('sort', 'id_desc');
+  // Ask the API to pre-filter by SR too, purely as an optimization so a
+  // narrow range doesn't waste fetches on obviously-out-of-range sets.
+  // matchesStarFilter() below re-checks every result regardless, since
+  // hinai's own docs warn some search params can fail *silently* (a 200
+  // with unfiltered data, not an error).
+  if (FILTERS.minStars !== '') p.set('min_stars', FILTERS.minStars);
+  if (FILTERS.maxStars !== '') p.set('max_stars', FILTERS.maxStars);
   return p.toString();
 }
 function hinaiDirectUrl(offset){ return `https://mirror.hinamizawa.ai/api/v1/hinai/search?${buildSearchParams(offset)}`; }
@@ -464,6 +528,24 @@ function mapSet(set){
   };
 }
 
+// A song matches the SR filter if ANY of its taiko diffs falls in range —
+// e.g. a min of 6 keeps a song that merely *has* a 7★ Oni even if its Kantan
+// is 2★, rather than requiring every diff to clear the bar.
+function matchesStarFilter(song){
+  if (FILTERS.minStars === '' && FILTERS.maxStars === '') return true;
+  const min = FILTERS.minStars !== '' ? Number(FILTERS.minStars) : -Infinity;
+  const max = FILTERS.maxStars !== '' ? Number(FILTERS.maxStars) : Infinity;
+  return song.diffs.some(d => d.stars >= min && d.stars <= max);
+}
+
+function shuffleArray(arr){
+  for (let i = arr.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 let POOL = [];
 let poolIsLive = false;
 let recentlyUsed = []; // avoids repeating the same song back-to-back
@@ -475,27 +557,46 @@ function setStatusBanner(mode){
   else { el.textContent = 'OFFLINE — sample pool'; el.style.color = 'var(--don)'; }
 }
 
+// Enough charts that a 10-round run rarely (if ever) has to repeat one.
+const MIN_TARGET_POOL = 30;
+// Hard ceiling on scattered-offset fetch attempts. A wide-open filter fills
+// past MIN_TARGET_POOL within the first few tries; a narrow one (e.g. a
+// 1★-wide SR range) may need most of this budget before giving up.
+const MAX_FETCH_ATTEMPTS = 30;
+
 async function loadPool(){
+  resetGameState();
+
   const heading = document.getElementById('cardHeading');
+  document.getElementById('resultsCard').style.display = 'none';
+  document.getElementById('quizCard').style.display = 'flex';
   heading.textContent = 'Loading a pool of charts…';
   disableActions(true);
 
   const seen = new Set();
   const pool = [];
   let source = 'direct';
+  let fetchFailed = false;
+
   try{
     // Scatter offsets across the whole catalog instead of walking pages
-    // 0,1,2,3… in order. Sequential pages of *any* sorted list cluster
-    // together (all newest, all most-favourited, whatever) — picking random
-    // offsets is what actually makes the pool random, independent of
-    // whatever the API's sort field does.
+    // 0,1,2,3… in order — sequential pages of *any* sorted list cluster
+    // together, which is exactly the non-random bias we want to avoid. Keep
+    // sampling new offsets (rather than a fixed page count) until the pool
+    // is big enough to comfortably cover a 10-round run without repeats, or
+    // until we've tried enough times that the SR filter is just narrow.
     const maxOffsetSteps = Math.max(1, Math.floor(CATALOG_OFFSET_CEILING / PAGE_SIZE));
-    const offsets = new Set();
-    while (offsets.size < POOL_PAGES){
-      offsets.add(Math.floor(Math.random() * maxOffsetSteps) * PAGE_SIZE);
-    }
+    const triedOffsets = new Set();
+    let attempts = 0;
 
-    for (const offset of offsets){
+    while (pool.length < MIN_TARGET_POOL && attempts < MAX_FETCH_ATTEMPTS){
+      let offset = Math.floor(Math.random() * maxOffsetSteps) * PAGE_SIZE;
+      if (triedOffsets.has(offset) && triedOffsets.size < maxOffsetSteps){
+        continue; // try a fresh offset instead of wasting a fetch on a repeat
+      }
+      triedOffsets.add(offset);
+      attempts++;
+
       let data;
       try{
         ({ data, source } = await fetchPage(offset));
@@ -503,58 +604,140 @@ async function loadPool(){
         console.warn('[guessgame] offset fetch failed, skipping:', offset, pageErr);
         continue; // one bad/out-of-range offset shouldn't sink the whole pool
       }
+
       data.forEach(set => {
         const song = mapSet(set);
-        if (song && !seen.has(song.setId)){
+        if (song && matchesStarFilter(song) && !seen.has(song.setId)){
           seen.add(song.setId);
           pool.push(song);
         }
       });
     }
-    if (!pool.length) throw new Error('empty pool');
+  }catch(err){
+    console.error('[guessgame] pool fetch failed:', err);
+    fetchFailed = true;
+  }
 
-    // Shuffle (Fisher–Yates) rather than sort by favourites/plays — no
-    // popularity ranking, no "top N" truncation. Every fetched chart has an
-    // equal shot at being picked; pickSong() then draws uniformly from this.
-    for (let i = pool.length - 1; i > 0; i--){
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-
-    POOL = pool;
+  if (pool.length){
+    POOL = shuffleArray(pool);
     poolIsLive = true;
     setStatusBanner(source);
-  }catch(err){
-    console.error('[guessgame] pool fetch failed, falling back to sample data:', err);
-    POOL = MOCK_SONGS;
-    poolIsLive = false;
-    setStatusBanner('offline');
+  } else {
+    const filteredMock = MOCK_SONGS.filter(matchesStarFilter);
+    if (fetchFailed){
+      // Live API is unreachable — fall back to the sample pool regardless
+      // of the filter, so there's still something to play offline.
+      POOL = filteredMock.length ? filteredMock : MOCK_SONGS;
+      poolIsLive = false;
+      setStatusBanner('offline');
+    } else if (filteredMock.length){
+      POOL = filteredMock;
+      poolIsLive = false;
+      setStatusBanner('offline');
+    } else {
+      // The live API worked fine — there just aren't any ranked taiko
+      // charts in this SR range. Tell the user instead of quietly showing
+      // mock songs outside the range they asked for.
+      disableActions(false);
+      showNoMatches();
+      return;
+    }
   }
+
+  const note = document.getElementById('filterNote');
+  note.textContent = POOL.length < MIN_TARGET_POOL
+    ? `Only ${POOL.length} chart${POOL.length===1?'':'s'} match this range — expect repeats.`
+    : '';
 
   disableActions(false);
   nextRound();
 }
 
-// ── round state ──────────────────────────────────────────────────────
+function showNoMatches(){
+  document.getElementById('cardHeading').textContent = 'No charts match that SR range';
+  document.getElementById('diffList').innerHTML = '';
+  document.getElementById('feedback').textContent = 'Widen the ★ range above and hit Apply again.';
+  document.getElementById('feedback').className = 'feedback info';
+  document.getElementById('reveal').classList.remove('shown');
+  document.getElementById('hintLine').innerHTML = '';
+  document.getElementById('actionsGuessing').style.display = 'none';
+  document.getElementById('actionsNext').style.display = 'none';
+  setGameControlsDisabled(true); // no `current` song loaded — keep guessing controls off
+  setStatusBanner('offline');
+}
+
+// ── round & game state ──────────────────────────────────────────────
+const ROUNDS_PER_GAME = 10;
 let current = null;
 let attemptCount = 0;
 let hintUsed = false;
 let roundResolved = false;
+let gameRound = 1; // 1-indexed, 1..ROUNDS_PER_GAME
 
 let score = 0, correctRounds = 0, totalRounds = 0, streak = 0, bestStreak = 0;
 
-function updateStats(){
-  document.getElementById('statScore').textContent = score;
-  document.getElementById('statRounds').textContent = `${correctRounds}/${totalRounds}`;
-  document.getElementById('statStreak').textContent = streak;
-  document.getElementById('statBest').textContent = bestStreak;
+function resetGameState(){
+  gameRound = 1;
+  score = 0; correctRounds = 0; totalRounds = 0; streak = 0; bestStreak = 0;
+  recentlyUsed = [];
+  updateStats();
+  updateTimerDisplay(0);
 }
 
-function disableActions(disabled){
+function updateStats(){
+  document.getElementById('statScore').textContent = score;
+  document.getElementById('statRound').textContent = `${Math.min(gameRound, ROUNDS_PER_GAME)}/${ROUNDS_PER_GAME}`;
+  document.getElementById('statStreak').textContent = streak;
+}
+
+// ── round timer & time-scaled scoring ─────────────────────────────────
+// Faster correct guesses are worth more: full marks for a near-instant
+// answer, decaying down to a floor so a slow-but-correct guess still counts
+// for something. Hints and wrong attempts both cost points on top of that.
+const BASE_POINTS = 100;
+const MIN_POINTS = 10;
+const DECAY_PER_SECOND = 4;
+const HINT_PENALTY = 25;
+const WRONG_GUESS_PENALTY = 5;
+
+let roundStartTs = 0;
+let timerId = null;
+
+function updateTimerDisplay(seconds){
+  document.getElementById('statTime').textContent = seconds.toFixed(1) + 's';
+}
+function startRoundTimer(){
+  roundStartTs = performance.now();
+  updateTimerDisplay(0);
+  clearInterval(timerId);
+  timerId = setInterval(() => updateTimerDisplay((performance.now() - roundStartTs) / 1000), 100);
+}
+function stopRoundTimer(){
+  clearInterval(timerId);
+  timerId = null;
+  return (performance.now() - roundStartTs) / 1000;
+}
+function computePoints(elapsedSeconds){
+  let pts = BASE_POINTS - elapsedSeconds * DECAY_PER_SECOND;
+  if (hintUsed) pts -= HINT_PENALTY;
+  pts -= Math.max(0, attemptCount - 1) * WRONG_GUESS_PENALTY; // attemptCount includes the correct guess itself
+  return Math.max(MIN_POINTS, Math.round(pts));
+}
+
+function setGameControlsDisabled(disabled){
   document.getElementById('submitBtn').disabled = disabled;
   document.getElementById('hintBtn').disabled = disabled;
   document.getElementById('giveUpBtn').disabled = disabled;
   document.getElementById('guessInput').disabled = disabled;
+}
+function setFilterControlsDisabled(disabled){
+  document.getElementById('filterApply').disabled = disabled;
+  document.getElementById('filterMinStars').disabled = disabled;
+  document.getElementById('filterMaxStars').disabled = disabled;
+}
+function disableActions(disabled){ // used while a network fetch is in flight
+  setGameControlsDisabled(disabled);
+  setFilterControlsDisabled(disabled);
 }
 
 function pickSong(){
@@ -597,8 +780,9 @@ function nextRound(){
   attemptCount = 0;
   hintUsed = false;
   roundResolved = false;
+  updateStats();
 
-  document.getElementById('cardHeading').textContent = 'Name this chart from its difficulties';
+  document.getElementById('cardHeading').textContent = `Round ${gameRound}/${ROUNDS_PER_GAME} — name this chart from its difficulties`;
   renderDiffs(current);
 
   const input = document.getElementById('guessInput');
@@ -616,6 +800,7 @@ function nextRound(){
   document.getElementById('actionsNext').style.display = 'none';
   document.getElementById('hintBtn').disabled = false;
 
+  startRoundTimer();
   input.focus();
 }
 
@@ -637,6 +822,8 @@ function isCorrect(guess, song){
 function resolveRound(state){ // state: 'correct' | 'gaveup'
   roundResolved = true;
   totalRounds++;
+  const elapsedSeconds = stopRoundTimer();
+  updateTimerDisplay(elapsedSeconds);
 
   const input = document.getElementById('guessInput');
   input.disabled = true;
@@ -644,17 +831,17 @@ function resolveRound(state){ // state: 'correct' | 'gaveup'
 
   const fb = document.getElementById('feedback');
   if (state === 'correct'){
-    const pts = (attemptCount <= 1 && !hintUsed) ? 2 : 1;
+    const pts = computePoints(elapsedSeconds);
     score += pts;
     correctRounds++;
     streak++;
     bestStreak = Math.max(bestStreak, streak);
     input.classList.add('correct');
-    fb.textContent = `🎉 Correct! +${pts} point${pts>1?'s':''}`;
+    fb.textContent = `🎉 Correct in ${elapsedSeconds.toFixed(1)}s! +${pts} pts`;
     fb.className = 'feedback ok';
   } else {
     streak = 0;
-    fb.textContent = 'The answer is revealed below.';
+    fb.textContent = 'The answer is revealed below. +0 pts';
     fb.className = 'feedback info';
   }
 
@@ -667,7 +854,9 @@ function resolveRound(state){ // state: 'correct' | 'gaveup'
 
   document.getElementById('actionsGuessing').style.display = 'none';
   document.getElementById('actionsNext').style.display = 'flex';
-  document.getElementById('nextBtn').focus();
+  const nextBtn = document.getElementById('nextBtn');
+  nextBtn.textContent = gameRound >= ROUNDS_PER_GAME ? '🏁 See results' : 'Next song ▶';
+  nextBtn.focus();
 
   updateStats();
 }
@@ -691,6 +880,16 @@ function submitGuess(){
   }
 }
 
+function showResults(){
+  clearInterval(timerId);
+  document.getElementById('quizCard').style.display = 'none';
+  document.getElementById('resultsCard').style.display = 'flex';
+  document.getElementById('resFinalScore').textContent = score;
+  document.getElementById('resCorrect').textContent = `${correctRounds}/${ROUNDS_PER_GAME}`;
+  document.getElementById('resBestStreak').textContent = bestStreak;
+  document.getElementById('resAvgPts').textContent = totalRounds ? Math.round(score / totalRounds) : 0;
+}
+
 document.getElementById('submitBtn').addEventListener('click', submitGuess);
 document.getElementById('giveUpBtn').addEventListener('click', () => { if (!roundResolved) resolveRound('gaveup'); });
 document.getElementById('hintBtn').addEventListener('click', () => {
@@ -699,9 +898,30 @@ document.getElementById('hintBtn').addEventListener('click', () => {
   document.getElementById('hintBtn').disabled = true;
   document.getElementById('hintLine').innerHTML = `Artist: <b>${escapeHtml(current.artist)}</b>`;
 });
-document.getElementById('nextBtn').addEventListener('click', nextRound);
+document.getElementById('nextBtn').addEventListener('click', () => {
+  if (gameRound >= ROUNDS_PER_GAME){
+    showResults();
+  } else {
+    gameRound++;
+    nextRound();
+  }
+});
 document.getElementById('backBtn').addEventListener('click', () => { window.location.href = 'index.html'; });
 document.getElementById('reloadPool').addEventListener('click', loadPool);
+document.getElementById('playAgainBtn').addEventListener('click', loadPool);
+document.getElementById('filterApply').addEventListener('click', () => {
+  const minEl = document.getElementById('filterMinStars');
+  const maxEl = document.getElementById('filterMaxStars');
+  let min = minEl.value.trim();
+  let max = maxEl.value.trim();
+  if (min !== '' && max !== '' && Number(min) > Number(max)){
+    [min, max] = [max, min]; // swap rather than reject — an accidental min>max shouldn't need a re-type
+    minEl.value = min; maxEl.value = max;
+  }
+  FILTERS.minStars = min;
+  FILTERS.maxStars = max;
+  loadPool();
+});
 
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
