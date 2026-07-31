@@ -424,6 +424,7 @@ kbd{
     <div class="left-btns">
       <div class="btn">◀ Back</div>
       <div class="btn random">🎲 Random</div>
+      <div class="btn" id="guessGameBtn">🎤 Guess the Song</div>
     </div>
     <div class="btn-play" id="playBtn">PLAY ▶</div>
   </div>
@@ -727,6 +728,7 @@ document.getElementById('filterQuery').addEventListener('keydown', (e) => { if (
 document.getElementById('filterSort').addEventListener('change', applyFilters);
 document.getElementById('filterStatus').addEventListener('change', applyFilters);
 document.getElementById('loadMoreBtn').addEventListener('click', () => loadSongs(false));
+document.getElementById('guessGameBtn').addEventListener('click', () => { window.location.href = 'guessgame.html'; });
 
 function updatePlayButtonState(){
   const btn = document.getElementById('playBtn');
