@@ -38,6 +38,9 @@
   --oni:        #d94747;
   --ura:        #b48ad9;
 
+  /* Wheel-only accents, for the special (non-song) tiles */
+  --random: #d17ec9;
+
   --text:        #d4d4d4;
   --text-dim:    #8a8a8a;
   --text-bright: #f0f0f0;
@@ -96,7 +99,7 @@ body{
 /* ---------- top bar ---------- */
 .topbar{
   display:flex; align-items:center; justify-content:space-between;
-  padding:16px 36px 12px;
+  padding:16px 36px 10px;
   border-bottom:1px solid var(--border-soft);
   background:rgba(38,38,38,0.5);
 }
@@ -139,171 +142,165 @@ kbd{
   font-family:'Nunito',sans-serif;
 }
 
-/* ---------- main body ---------- */
-.main{ flex:1; display:flex; min-height:0; padding:20px 36px; gap:24px; }
-
-/* left info panel */
-.infopanel{ width:350px; flex-shrink:0; display:flex; flex-direction:column; gap:14px; min-height:0; }
-
-.cover{
-  height:180px; border-radius:var(--r); position:relative; overflow:hidden;
-  background: linear-gradient(135deg, var(--cover-a,#333), var(--cover-b,#1a1a1a));
-  border:1px solid var(--border-soft);
-  display:flex; align-items:flex-end;
+/* ---------- category pager ---------- */
+.categorybar{
+  display:flex; align-items:center; justify-content:center; gap:16px;
+  padding:10px 36px 4px;
 }
-.cover::before{
-  content:''; position:absolute; top:0; left:0; right:0; height:3px;
-  background:var(--diff-color, var(--accent)); opacity:0.85; z-index:2;
-  transition:background 0.2s ease;
+.cat-arrow{
+  width:30px; height:30px; border-radius:50%; border:1px solid var(--border-soft);
+  background:var(--bg2); color:var(--text-dim); font-size:0.85rem; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; transition:all .15s; flex-shrink:0;
 }
-.cover::after{
-  content:""; position:absolute; inset:0;
-  background: linear-gradient(to top, rgba(0,0,0,0.7), transparent 60%);
+.cat-arrow:hover{ background:var(--bg3); color:var(--text-bright); border-color:var(--accent); }
+.cat-pill{
+  display:flex; align-items:center; gap:10px; padding:7px 22px;
+  border-radius:999px; background:var(--bg1); border:1px solid var(--border-soft);
+  border-left:4px solid var(--cat-color, var(--accent));
+  box-shadow:0 0 22px -9px var(--cat-color, transparent);
+  min-width:230px; justify-content:center; transition:border-color .3s, box-shadow .3s, transform .2s;
 }
-.cover-title{ position:relative; z-index:1; padding:14px 16px 2px; font-family:'Nunito',sans-serif; font-weight:800; font-size:1.05rem; line-height:1.25; color:var(--text-bright); }
-.cover-artist{ position:relative; z-index:1; padding:0 16px 12px; font-size:0.72rem; font-weight:600; color:var(--text-dim); }
+.cat-pill.bump{ animation: catBump .32s cubic-bezier(.34,1.56,.64,1); }
+@keyframes catBump{ 0%{ transform:scale(1); } 40%{ transform:scale(1.06); } 100%{ transform:scale(1); } }
+.cat-name{ font-family:'Nunito'; font-weight:800; font-size:0.8rem; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-bright); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:280px; }
+.cat-count{ font-size:0.6rem; font-weight:700; color:var(--text-dim); letter-spacing:0.5px; flex-shrink:0; }
 
-.meta-row{ display:flex; gap:8px; }
-.meta-chip{
-  background:var(--bg1); border:1px solid var(--border-soft); border-radius:var(--r-sm);
-  padding:7px 8px; flex:1; text-align:center;
+/* ---------- song wheel (horizontal carousel of collapsed vertical cards) ---------- */
+.carousel-wrap{
+  position:relative; flex:1; min-height:210px; display:flex; align-items:center; justify-content:center;
+  padding:4px 68px; overflow:hidden;
 }
-.meta-chip .val{ font-family:'Nunito'; font-weight:800; font-size:1.05rem; color:var(--text-bright); }
-.meta-chip .lbl{ font-size:0.56rem; font-weight:700; color:var(--text-dim); letter-spacing:1.5px; margin-top:2px; }
+.carousel-focus{
+  position:absolute; left:50%; top:50%; width:190px; height:190px; transform:translate(-50%,-50%);
+  border-radius:26px; border:1.5px dashed rgba(255,255,255,0.08);
+  background:radial-gradient(ellipse at center, rgba(255,255,255,0.035), transparent 70%);
+  pointer-events:none; z-index:0;
+}
+.carousel-track{ position:relative; width:100%; height:100%; }
 
-.mapper{ font-size:0.7rem; font-weight:600; color:var(--text-dim); }
+/* Each tile is a "collapsed vertical card" — tall, narrow, with the title
+   readable on it even when closed — that widens into an "open" card when
+   selected. Position (.tile) and size (.selected) transition on separate
+   easings so the wheel slides smoothly while the open/close pop has a
+   little spring to it. */
+.tile{
+  position:absolute; top:50%; left:50%; width:60px; height:184px; margin-top:-92px; margin-left:-30px;
+  border-radius:14px; cursor:pointer; overflow:hidden;
+  display:flex; flex-direction:column; justify-content:flex-end;
+  border:2px solid rgba(255,255,255,0.14);
+  transition:
+    transform .42s cubic-bezier(.22,1,.36,1),
+    width .38s cubic-bezier(.34,1.56,.64,1),
+    margin-left .38s cubic-bezier(.34,1.56,.64,1),
+    opacity .3s ease,
+    box-shadow .3s ease,
+    border-color .3s ease;
+}
+.tile.selected{
+  width:176px; margin-left:-88px; z-index:10;
+  box-shadow:0 0 0 3px var(--tile-color, var(--accent)), 0 20px 40px -10px var(--tile-color, var(--accent));
+  border-color:rgba(255,255,255,0.3);
+  animation: selectedGlow 2.6s ease-in-out infinite;
+}
+@keyframes selectedGlow{
+  0%,100%{ box-shadow:0 0 0 3px var(--tile-color, var(--accent)), 0 20px 40px -10px var(--tile-color, var(--accent)); }
+  50%{ box-shadow:0 0 0 4px var(--tile-color, var(--accent)), 0 26px 50px -8px var(--tile-color, var(--accent)); }
+}
+.tc-cover{ position:absolute; inset:0; background-size:cover; background-position:center; opacity:0; transition:opacity .3s ease; }
+.tc-cover.loaded{ opacity:1; }
+.tc-scrim{ position:absolute; left:0; right:0; bottom:0; height:68%; background:linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0.15) 65%, transparent); pointer-events:none; }
+.tc-icon{
+  position:absolute; top:38%; left:50%; transform:translate(-50%,-50%); z-index:1;
+  font-size:1.4rem; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5)); transition:font-size .3s;
+}
+.tile.selected .tc-icon{ font-size:2.2rem; }
+.tc-title{
+  position:relative; z-index:2; padding:7px 7px 9px; font-family:'Nunito'; font-weight:800; color:#fff;
+  font-size:0.6rem; line-height:1.18; text-shadow:0 1px 4px rgba(0,0,0,0.6);
+  display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden;
+  transition:font-size .3s, padding .3s;
+}
+.tile.selected .tc-title{ font-size:0.88rem; -webkit-line-clamp:3; padding:10px 14px 4px; }
+.tc-artist{
+  position:relative; z-index:2; display:none; font-size:0.68rem; font-weight:600;
+  color:rgba(255,255,255,0.78); padding:0 14px 12px; margin-top:-4px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.tile.selected .tc-artist{ display:block; }
+
+.carousel-side{
+  position:absolute; top:50%; transform:translateY(-50%); width:38px; height:38px; border-radius:50%;
+  background:var(--bg2); border:1px solid var(--border-soft); color:var(--text-dim);
+  font-size:1.1rem; cursor:pointer; z-index:50; display:flex; align-items:center; justify-content:center;
+  transition:all .15s;
+}
+.carousel-side:hover{ background:var(--bg3); color:var(--text-bright); border-color:var(--accent); }
+.carousel-side.left{ left:16px; }
+.carousel-side.right{ right:16px; }
+.carousel-status{
+  position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+  color:var(--text-dim); font-size:0.78rem; font-weight:600; z-index:200; text-align:center; padding:20px;
+  background:rgba(31,31,31,0.55); backdrop-filter:blur(2px);
+}
+
+/* ---------- info bar (below the wheel) ---------- */
+.infobar{
+  display:flex; align-items:center; gap:16px; padding:12px 24px;
+  margin:0 36px 10px; background:var(--bg1); border:1px solid var(--border-soft); border-radius:var(--r);
+}
+.ib-cover{
+  width:60px; height:60px; border-radius:12px; flex-shrink:0; background-size:cover; background-position:center;
+  border:2px solid rgba(255,255,255,0.12); transition:background 0.3s ease;
+}
+.ib-text{ min-width:0; width:200px; flex-shrink:0; }
+.ib-title{ font-family:'Nunito'; font-weight:800; font-size:0.98rem; color:var(--text-bright); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ib-subtitle{ font-size:0.72rem; font-weight:600; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:1px 0 4px; }
+.mapper{ font-size:0.66rem; font-weight:600; color:var(--text-dim); }
 .mapper b{ color:var(--text-bright); font-weight:800; }
 
-/* difficulty selector, styled like the editor's diff-item picker */
-.diff-label{ font-size:0.6rem; font-weight:800; letter-spacing:1.5px; color:var(--text-dim); text-transform:uppercase; margin-bottom:2px; }
-.difficulties{ display:flex; flex-direction:column; gap:6px; }
-.diff-btn{
-  display:flex; align-items:center; gap:10px;
-  background:var(--bg2); border:1px solid var(--border-soft); border-left:3px solid var(--diff-color, var(--accent));
-  border-radius:var(--r-sm); padding:7px 12px; cursor:pointer;
-  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+.meta-row{ display:flex; gap:8px; flex-shrink:0; }
+.meta-chip{
+  background:var(--bg2); border:1px solid var(--border-soft); border-radius:var(--r-sm);
+  padding:6px 10px; text-align:center; min-width:56px;
 }
-.diff-btn:hover{ background:var(--bg3); transform:translateX(2px); }
-.diff-btn.active{
-  background:var(--bg3);
-  box-shadow:0 0 0 1px var(--diff-color, var(--accent)), 0 0 18px -4px var(--diff-color, var(--accent));
-}
-.drum-dot{
-  width:24px; height:24px; border-radius:50%; flex-shrink:0;
-  background:radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), transparent 60%), var(--diff-color);
-  border:2px solid rgba(255,255,255,0.15);
-}
-.diff-name{ font-weight:700; font-size:0.78rem; flex:1; color:var(--text-bright); }
-.diff-stars{ font-size:0.66rem; font-weight:700; color:var(--diff-color); letter-spacing:1px; }
+.meta-chip .val{ font-family:'Nunito'; font-weight:800; font-size:0.98rem; color:var(--text-bright); }
+.meta-chip .lbl{ font-size:0.54rem; font-weight:700; color:var(--text-dim); letter-spacing:1.5px; margin-top:2px; }
 
-/* note preview strip */
 .notestrip{
-  margin-top:auto; height:54px; border-radius:var(--r-sm);
-  background:var(--bg1); border:1px solid var(--border-soft);
+  flex:1; min-width:100px; height:48px; border-radius:var(--r-sm);
+  background:var(--bg2); border:1px solid var(--border-soft);
   position:relative; overflow:hidden;
 }
-.notestrip .rail{ position:absolute; left:50px; top:0; bottom:0; width:2px; background:var(--accent); opacity:.5; }
+.notestrip .rail{ position:absolute; left:44px; top:0; bottom:0; width:2px; background:var(--accent); opacity:.5; }
 .notestrip .judge-ring{
-  position:absolute; left:28px; top:50%; transform:translateY(-50%);
-  width:40px; height:40px; border-radius:50%; border:3px solid var(--text-dim); opacity:.6;
+  position:absolute; left:24px; top:50%; transform:translateY(-50%);
+  width:34px; height:34px; border-radius:50%; border:3px solid var(--text-dim); opacity:.6;
 }
 .notestrip .track{
-  position:absolute; top:0; left:56px; right:0; bottom:0;
+  position:absolute; top:0; left:50px; right:0; bottom:0;
   display:flex; align-items:center;
   animation: scroll-notes 4s linear infinite;
 }
-.note{ width:32px; height:32px; border-radius:50%; flex-shrink:0; margin-right:24px; border:3px solid rgba(255,255,255,0.2); }
+.note{ width:28px; height:28px; border-radius:50%; flex-shrink:0; margin-right:20px; border:3px solid rgba(255,255,255,0.2); }
 .note.don{ background:var(--don); }
 .note.katsu{ background:var(--kat); }
-.note.big{ width:42px; height:42px; }
+.note.big{ width:36px; height:36px; }
 @keyframes scroll-notes{ from{ transform:translateX(0); } to{ transform:translateX(-580px); } }
 
-/* ---------- song list (right) ---------- */
-.songlist-wrap{ flex:1; min-width:0; display:flex; flex-direction:column; min-height:0; }
+.btn-select{
+  font-family:'Nunito'; font-weight:800; font-size:0.82rem; letter-spacing:1px;
+  background:linear-gradient(135deg, var(--accent), var(--accent-dim)); border:none; color:#fff;
+  padding:12px 28px; border-radius:999px; cursor:pointer; flex-shrink:0;
+  box-shadow:0 4px 18px -4px var(--accent-glow); transition:filter .15s, transform .1s, opacity .15s;
+}
+.btn-select:hover:not(:disabled){ filter:brightness(1.12); }
+.btn-select:active:not(:disabled){ transform:scale(0.97); }
+.btn-select:disabled{ opacity:.4; cursor:not-allowed; }
 
-.filter-bar{
-  display:flex; flex-wrap:wrap; gap:8px; align-items:center;
-  margin-bottom:10px; padding:10px; border-radius:var(--r);
-  background:var(--bg1); border:1px solid var(--border-soft);
-}
-.filter-input{
-  flex:1 1 180px; min-width:140px;
-  background:var(--bg2); border:1px solid var(--border-soft); border-radius:var(--r-sm);
-  color:var(--text-bright); font-family:'Nunito'; font-size:0.72rem; font-weight:600;
-  padding:7px 10px;
-}
-.filter-input::placeholder{ color:var(--text-dim); }
-.filter-select{
-  background:var(--bg2); border:1px solid var(--border-soft); border-radius:var(--r-sm);
-  color:var(--text-bright); font-family:'Nunito'; font-size:0.7rem; font-weight:700;
-  padding:7px 8px; cursor:pointer;
-}
-.filter-range{ display:flex; align-items:center; gap:4px; }
-.filter-label{ font-size:0.62rem; font-weight:800; color:var(--text-dim); letter-spacing:0.5px; margin-right:2px; }
-.filter-dash{ color:var(--text-dim); font-size:0.7rem; }
-.filter-num{
-  width:52px; background:var(--bg2); border:1px solid var(--border-soft); border-radius:var(--r-sm);
-  color:var(--text-bright); font-family:'Nunito'; font-size:0.7rem; font-weight:600;
-  padding:6px 6px; text-align:center;
-}
-.filter-num::-webkit-inner-spin-button{ opacity:0.4; }
-.filter-apply{
-  font-family:'Nunito'; font-size:0.68rem; font-weight:800; letter-spacing:0.5px; text-transform:uppercase;
-  color:#fff; background:var(--accent); border:1px solid var(--accent); border-radius:var(--r-sm);
-  padding:8px 16px; cursor:pointer; transition:filter 0.15s;
-}
-.filter-apply:hover{ filter:brightness(1.1); }
-
-.list-toolbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:0 2px; gap:10px; }
-.count{ font-size:0.62rem; font-weight:700; color:var(--text-dim); letter-spacing:0.5px; white-space:nowrap; }
-
-.songlist{ flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding-right:6px; }
-.songlist::-webkit-scrollbar{ width:8px; }
-.songlist::-webkit-scrollbar-thumb{ background:var(--bg4); border-radius:20px; }
-.songlist::-webkit-scrollbar-track{ background:transparent; }
-
-.song-row{
-  display:flex; align-items:center; gap:13px;
-  background:var(--bg1); border:1px solid var(--border-soft);
-  border-left:5px solid var(--row-color, var(--border-soft));
-  border-radius:var(--r); padding:9px 16px 9px 13px; cursor:pointer;
-  position:relative;
-  transition: transform 0.13s, background 0.13s, box-shadow 0.13s;
-}
-/* faint colour wash bleeding in from the difficulty edge — echoes the edge
-   colour without turning the whole row into a colour block */
-.song-row::before{
-  content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
-  background:linear-gradient(90deg, var(--row-color, transparent) 0%, transparent 42%);
-  opacity:0.07;
-}
-.song-row:hover{ background:var(--bg2); transform:translateX(2px); box-shadow:0 0 16px -9px var(--row-color, var(--bg4)); }
-.song-row.selected{
-  background:var(--bg2);
-  transform:translateX(4px);
-  box-shadow:0 0 22px -6px var(--row-color), inset 0 0 0 1px var(--row-color);
-}
-.song-cover{
-  width:44px; height:44px; border-radius:9px; flex-shrink:0; position:relative; overflow:hidden;
-  background:radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), transparent 60%), var(--row-color);
-  border:2px solid rgba(255,255,255,0.15);
-  z-index:1; /* sit above the row's colour-wash pseudo-element */
-}
-.song-cover img{
-  position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
-  opacity:0; transition:opacity 0.3s ease;
-}
-.song-cover img.loaded{ opacity:1; }
-.song-text{ flex:1; min-width:0; position:relative; z-index:1; }
-.song-title{ font-weight:700; font-size:0.86rem; color:var(--text-bright); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.song-artist{ font-size:0.7rem; font-weight:600; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.song-stars{ font-size:0.68rem; font-weight:700; color:var(--row-color); flex-shrink:0; letter-spacing:1px; position:relative; z-index:1; }
-.song-bpm{ font-size:0.68rem; font-weight:600; color:var(--text-dim); width:62px; text-align:right; flex-shrink:0; position:relative; z-index:1; }
-
-/* ---------- bottom bar ---------- */
-.bottombar{
+/* ---------- footer ---------- */
+.footer{
   display:flex; justify-content:space-between; align-items:center;
-  padding:14px 36px 20px; border-top:1px solid var(--border-soft);
+  padding:10px 36px 18px; border-top:1px solid var(--border-soft);
   background:rgba(38,38,38,0.5);
 }
 .btn{
@@ -313,16 +310,98 @@ kbd{
 }
 .btn:hover{ background:var(--bg4); border-color:var(--accent); color:var(--text-bright); box-shadow:0 0 10px var(--accent-glow); }
 .btn:active{ transform:scale(0.96); }
-.btn.random:hover{ border-color:var(--warm); box-shadow:0 0 10px var(--warm-glow); }
 .left-btns{ display:flex; gap:10px; }
-.btn-play{
-  font-family:'Nunito'; font-weight:800; font-size:0.95rem; letter-spacing:1px;
-  background:linear-gradient(135deg, var(--don), #a01528);
-  border:none; color:#fff; padding:13px 44px; border-radius:999px; cursor:pointer;
-  box-shadow:0 4px 20px -4px rgba(217,71,71,0.6); transition:filter 0.15s, transform 0.1s;
+.footer-status{ font-size:0.62rem; font-weight:700; letter-spacing:0.5px; color:var(--text-dim); }
+
+/* ---------- difficulty screen (second step) ---------- */
+.diffscreen{
+  position:fixed; inset:0; z-index:60; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:26px;
+  background:radial-gradient(ellipse 1000px 700px at 50% 40%, rgba(0,0,0,0.55), rgba(8,8,8,0.94));
+  backdrop-filter:blur(6px);
+  opacity:0; pointer-events:none; transition:opacity .25s ease;
 }
-.btn-play:hover{ filter:brightness(1.12); }
-.btn-play:active{ transform:scale(0.97); }
+.diffscreen.active{ opacity:1; pointer-events:auto; }
+.diffscreen-head{ text-align:center; }
+.diffscreen-title{ font-family:'Nunito'; font-weight:800; font-size:1.7rem; color:var(--text-bright); }
+.diffscreen-artist{ font-size:0.82rem; font-weight:600; color:var(--text-dim); margin-top:4px; }
+.diffcapsules{ display:flex; gap:18px; align-items:flex-end; flex-wrap:wrap; justify-content:center; max-width:90vw; }
+.diffcapsule{
+  width:82px; display:flex; flex-direction:column; align-items:center; gap:10px;
+  padding:18px 8px 20px; border-radius:44px; background:var(--bg2); border:2px solid var(--border-soft);
+  cursor:pointer; transition:transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .22s, border-color .22s;
+  animation: capsuleIn .4s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes capsuleIn{
+  from{ opacity:0; transform:translateY(22px) scale(0.9); }
+  to{ opacity:1; transform:translateY(0) scale(1); }
+}
+.diffcapsule:hover{ transform:translateY(-4px); }
+.diffcapsule.selected{
+  transform:translateY(-16px) scale(1.06); border-color:var(--diff-color);
+  box-shadow:0 0 0 3px var(--diff-color), 0 18px 34px -10px var(--diff-color);
+}
+.dc-dot{ width:44px; height:44px; border-radius:50%; flex-shrink:0; background:radial-gradient(circle at 35% 30%, rgba(255,255,255,0.4), transparent 60%), var(--diff-color); border:2px solid rgba(255,255,255,0.2); }
+.dc-name{ font-family:'Nunito'; font-weight:700; font-size:0.68rem; color:var(--text-bright); text-align:center; }
+.dc-stars{ font-size:0.64rem; font-weight:700; color:var(--diff-color); letter-spacing:1px; text-align:center; }
+.diffscreen-actions{ display:flex; gap:16px; }
+.btn-play{
+  font-family:'Nunito'; font-weight:800; font-size:0.9rem; letter-spacing:1px;
+  background:linear-gradient(135deg, var(--don), #a01528);
+  border:none; color:#fff; padding:13px 40px; border-radius:999px; cursor:pointer;
+  box-shadow:0 4px 20px -4px rgba(217,71,71,0.6); transition:filter 0.15s, transform 0.1s, opacity .15s;
+}
+.btn-play:hover:not(:disabled){ filter:brightness(1.12); }
+.btn-play:active:not(:disabled){ transform:scale(0.97); }
+.btn-play:disabled{ opacity:.4; cursor:not-allowed; }
+.diffscreen-hint{ font-size:0.62rem; font-weight:600; color:var(--text-dim); letter-spacing:0.3px; }
+
+/* ---------- search overlay ---------- */
+.searchoverlay{
+  position:fixed; inset:0; z-index:70; display:flex; align-items:flex-start; justify-content:center; padding-top:9vh;
+  background:rgba(15,15,15,0.68); backdrop-filter:blur(4px);
+  opacity:0; pointer-events:none; transition:opacity .2s ease;
+}
+.searchoverlay.active{ opacity:1; pointer-events:auto; }
+.searchpanel{
+  width:min(760px, 90vw); background:var(--panel); border:1px solid var(--border-soft); border-radius:var(--r);
+  padding:22px 22px 18px; box-shadow:0 24px 60px -14px rgba(0,0,0,0.7);
+  transform:translateY(-14px) scale(0.98); opacity:0;
+  transition:transform .25s cubic-bezier(.22,1,.36,1), opacity .2s ease;
+}
+.searchoverlay.active .searchpanel{ transform:translateY(0) scale(1); opacity:1; }
+.searchpanel-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+.searchpanel-header h2{ font-family:'Nunito'; font-size:0.9rem; font-weight:800; color:var(--text-bright); letter-spacing:0.5px; text-transform:uppercase; }
+.searchclose{ background:none; border:none; color:var(--text-dim); font-size:1.2rem; cursor:pointer; line-height:1; }
+.searchclose:hover{ color:var(--text-bright); }
+
+.filter-bar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.filter-input{
+  flex:1 1 220px; min-width:160px;
+  background:var(--bg2); border:1px solid var(--border-soft); border-radius:var(--r-sm);
+  color:var(--text-bright); font-family:'Nunito'; font-size:0.72rem; font-weight:600;
+  padding:8px 10px;
+}
+.filter-input::placeholder{ color:var(--text-dim); }
+.filter-select{
+  background:var(--bg2); border:1px solid var(--border-soft); border-radius:var(--r-sm);
+  color:var(--text-bright); font-family:'Nunito'; font-size:0.7rem; font-weight:700;
+  padding:8px 8px; cursor:pointer;
+}
+.filter-range{ display:flex; align-items:center; gap:4px; }
+.filter-label{ font-size:0.62rem; font-weight:800; color:var(--text-dim); letter-spacing:0.5px; margin-right:2px; }
+.filter-dash{ color:var(--text-dim); font-size:0.7rem; }
+.filter-num{
+  width:52px; background:var(--bg2); border:1px solid var(--border-soft); border-radius:var(--r-sm);
+  color:var(--text-bright); font-family:'Nunito'; font-size:0.7rem; font-weight:600;
+  padding:7px 6px; text-align:center;
+}
+.filter-apply{
+  font-family:'Nunito'; font-size:0.68rem; font-weight:800; letter-spacing:0.5px; text-transform:uppercase;
+  color:#fff; background:var(--accent); border:1px solid var(--accent); border-radius:var(--r-sm);
+  padding:9px 18px; cursor:pointer; transition:filter 0.15s;
+}
+.filter-apply:hover{ filter:brightness(1.1); }
+.search-note{ margin-top:12px; font-size:0.62rem; color:var(--text-dim); }
 </style>
 </head>
 <body>
@@ -339,99 +418,118 @@ kbd{
       </div>
     </div>
     <div class="searchhint">
-      <div class="hint">Navigate <kbd>↑</kbd><kbd>↓</kbd></div>
-      <div class="hint">Difficulty <kbd>←</kbd><kbd>→</kbd></div>
-      <div class="hint">Play <kbd>Enter</kbd></div>
+      <div class="hint">Songs <kbd>←</kbd><kbd>→</kbd></div>
+      <div class="hint">Category <kbd>↑</kbd><kbd>↓</kbd></div>
+      <div class="hint">Select <kbd>Enter</kbd></div>
+      <div class="hint">Search <kbd>/</kbd></div>
       <div class="hint" id="debugToggle" style="cursor:pointer; text-decoration:underline;">🐞 debug console</div>
       <div class="hint" id="retryFetch" style="cursor:pointer; text-decoration:underline;">🔄 retry fetch</div>
     </div>
   </div>
 
-  <div class="main">
-    <div class="infopanel">
-      <div class="cover" id="cover">
-        <div class="cover-title" id="coverTitle"></div>
-      </div>
-      <div class="cover-artist" id="coverArtist"></div>
-
-      <div class="meta-row">
-        <div class="meta-chip"><div class="val" id="metaBpm"></div><div class="lbl">BPM</div></div>
-        <div class="meta-chip"><div class="val" id="metaLen"></div><div class="lbl">LENGTH</div></div>
-        <div class="meta-chip"><div class="val" id="metaStars"></div><div class="lbl">STARS</div></div>
-      </div>
-
-      <div class="mapper">Mapped by <b id="mapperName"></b></div>
-
-      <div>
-        <div class="diff-label">Difficulty</div>
-        <div class="difficulties" id="diffList"></div>
-      </div>
-
-      <div class="notestrip">
-        <div class="judge-ring"></div>
-        <div class="rail"></div>
-        <div class="track" id="noteTrack"></div>
-      </div>
+  <div class="categorybar">
+    <div class="cat-arrow" id="catPrev">◀</div>
+    <div class="cat-pill" id="catPill">
+      <div class="cat-name" id="catName">Ranked</div>
+      <div class="cat-count" id="catCount"></div>
     </div>
-
-    <div class="songlist-wrap">
-      <div class="filter-bar">
-        <input type="text" id="filterQuery" class="filter-input" placeholder="Search title, artist, mapper…">
-        <select id="filterSort" class="filter-select">
-          <option value="plays_desc">Most played</option>
-          <option value="ranked_desc" selected>Newest ranked</option>
-          <option value="favourites_desc">Most favourited</option>
-          <option value="title_asc">Title A–Z</option>
-          <option value="difficulty_desc">Hardest first</option>
-          <option value="difficulty_asc">Easiest first</option>
-        </select>
-        <select id="filterStatus" class="filter-select">
-          <option value="1">Ranked</option>
-          <option value="4">Loved</option>
-          <option value="2">Approved</option>
-          <option value="3">Qualified</option>
-          <option value="">All statuses</option>
-        </select>
-        <div class="filter-range">
-          <span class="filter-label">★</span>
-          <input type="number" id="filterMinStars" class="filter-num" min="0" max="15" step="0.1" placeholder="min">
-          <span class="filter-dash">–</span>
-          <input type="number" id="filterMaxStars" class="filter-num" min="0" max="15" step="0.1" placeholder="max">
-        </div>
-        <div class="filter-range">
-          <span class="filter-label">BPM</span>
-          <input type="number" id="filterMinBpm" class="filter-num" min="0" placeholder="min">
-          <span class="filter-dash">–</span>
-          <input type="number" id="filterMaxBpm" class="filter-num" min="0" placeholder="max">
-        </div>
-        <button class="filter-apply" id="filterApply">Search</button>
-      </div>
-      <div class="list-toolbar">
-        <div class="eyebrow" style="margin-top:0;">osu!taiko only — mode is locked, this is a taiko game</div>
-        <div style="display:flex; align-items:center; gap:14px;">
-          <div id="statusBanner" class="eyebrow" style="margin-top:0;"></div>
-          <div class="count" id="songCount"></div>
-        </div>
-      </div>
-      <div class="songlist" id="songList"></div>
-      <div id="loadMoreWrap" style="display:none; padding:10px 2px 0;">
-        <button class="btn" id="loadMoreBtn" style="width:100%; justify-content:center;">Load more charts</button>
-      </div>
-    </div>
+    <div class="cat-arrow" id="catNext">▶</div>
   </div>
 
-  <div class="bottombar">
+  <div class="carousel-wrap" id="carouselWrap">
+    <div class="carousel-focus"></div>
+    <div class="carousel-track" id="carouselTrack"></div>
+    <div class="carousel-status" id="carouselStatus"></div>
+    <div class="carousel-side left" id="sideLeft">‹</div>
+    <div class="carousel-side right" id="sideRight">›</div>
+  </div>
+
+  <div class="infobar">
+    <div class="ib-cover" id="coverThumb"></div>
+    <div class="ib-text">
+      <div class="ib-title" id="infoTitle"></div>
+      <div class="ib-subtitle" id="infoSubtitle"></div>
+      <div class="mapper" id="mapperWrap">Mapped by <b id="mapperName"></b></div>
+    </div>
+    <div class="meta-row" id="infoMetaRow">
+      <div class="meta-chip"><div class="val" id="metaBpm"></div><div class="lbl">BPM</div></div>
+      <div class="meta-chip"><div class="val" id="metaLen"></div><div class="lbl">LENGTH</div></div>
+      <div class="meta-chip"><div class="val" id="metaStars"></div><div class="lbl">STARS</div></div>
+    </div>
+    <div class="notestrip">
+      <div class="judge-ring"></div>
+      <div class="rail"></div>
+      <div class="track" id="noteTrack"></div>
+    </div>
+    <button class="btn-select" id="selectBtn">SELECT ▶</button>
+  </div>
+
+  <div class="footer">
     <div class="left-btns">
-      <div class="btn">◀ Back</div>
-      <div class="btn random">🎲 Random</div>
+      <div class="btn" id="exitBtn">◀ Exit</div>
       <div class="btn" id="guessGameBtn">🎤 Guess the Song</div>
     </div>
-    <div class="btn-play" id="playBtn">PLAY ▶</div>
+    <div class="footer-status" id="statusBanner"></div>
+  </div>
+</div>
+
+<!-- Step 2: difficulty select, mirrors taiko-web's own song → difficulty flow -->
+<div class="diffscreen" id="diffScreen">
+  <div class="diffscreen-head">
+    <div class="diffscreen-title" id="diffTitle"></div>
+    <div class="diffscreen-artist" id="diffArtist"></div>
+  </div>
+  <div class="diffcapsules" id="diffCapsules"></div>
+  <div class="diffscreen-actions">
+    <div class="btn" id="diffBackBtn">◀ Back</div>
+    <button class="btn-play" id="diffPlayBtn">PLAY ▶</button>
+  </div>
+  <div class="diffscreen-hint">Cycle with <kbd>←</kbd><kbd>→</kbd> · confirm with <kbd>Enter</kbd> or click a capsule twice</div>
+</div>
+
+<div class="searchoverlay" id="searchOverlay">
+  <div class="searchpanel">
+    <div class="searchpanel-header">
+      <h2>Search charts</h2>
+      <button class="searchclose" id="searchCloseBtn">✕</button>
+    </div>
+    <div class="filter-bar">
+      <input type="text" id="filterQuery" class="filter-input" placeholder="Search title, artist, mapper…">
+      <select id="filterSort" class="filter-select">
+        <option value="plays_desc">Most played</option>
+        <option value="ranked_desc" selected>Newest ranked</option>
+        <option value="favourites_desc">Most favourited</option>
+        <option value="title_asc">Title A–Z</option>
+        <option value="difficulty_desc">Hardest first</option>
+        <option value="difficulty_asc">Easiest first</option>
+      </select>
+      <select id="filterStatus" class="filter-select">
+        <option value="1">Ranked</option>
+        <option value="4">Loved</option>
+        <option value="2">Approved</option>
+        <option value="3">Qualified</option>
+        <option value="">All statuses</option>
+      </select>
+      <div class="filter-range">
+        <span class="filter-label">★</span>
+        <input type="number" id="filterMinStars" class="filter-num" min="0" max="15" step="0.1" placeholder="min">
+        <span class="filter-dash">–</span>
+        <input type="number" id="filterMaxStars" class="filter-num" min="0" max="15" step="0.1" placeholder="max">
+      </div>
+      <div class="filter-range">
+        <span class="filter-label">BPM</span>
+        <input type="number" id="filterMinBpm" class="filter-num" min="0" placeholder="min">
+        <span class="filter-dash">–</span>
+        <input type="number" id="filterMaxBpm" class="filter-num" min="0" placeholder="max">
+      </div>
+      <button class="filter-apply" id="filterApply">Search</button>
+    </div>
+    <div class="search-note">osu!taiko only — mode is locked, this is a taiko game. Picking a status here doubles as the category wheel above.</div>
   </div>
 </div>
 
 <iframe id="gameFrame" src="about:blank" title="Taiko gameplay"
-  style="display:none; position:fixed; inset:0; width:100%; height:100%; border:0; z-index:50; background:#05070b;"></iframe>
+  style="display:none; position:fixed; inset:0; width:100%; height:100%; border:0; z-index:80; background:#05070b;"></iframe>
 
 <script>
 const DIFF_COLORS = {
@@ -470,6 +568,7 @@ function starColor(stars){
     }
   }
 }
+function starString(n){ return '★'.repeat(n); }
 
 // Fallback data — used only if the live API call fails (network/CORS/etc).
 const MOCK_SONGS = [
@@ -499,10 +598,30 @@ const MOCK_SONGS = [
     diffs:[ {d:'Kantan',stars:2},{d:'Futsuu',stars:4},{d:'Muzukashii',stars:6},{d:'Oni',stars:8} ] },
 ];
 
+// ══════════════════════════════════════════════════════════════════════
+//  CATEGORIES — hinai's `status` values (Ranked/Loved/Approved/Qualified)
+//  doing double duty as taiko-web's genre folders. Up/Down (or the arrows
+//  in the pill bar) page between them, exactly like taiko-web's category
+//  jump — just re-scoped to what this API can actually group by.
+// ══════════════════════════════════════════════════════════════════════
+const CATEGORIES = [
+  { key:'1', label:'Ranked',      color:'var(--kantan)' },
+  { key:'4', label:'Loved',       color:'var(--warm)' },
+  { key:'2', label:'Approved',    color:'var(--kat)' },
+  { key:'3', label:'Qualified',   color:'var(--futsuu)' },
+  { key:'',  label:'All Statuses',color:'var(--ura)' },
+];
+
 let SONGS = [];
-let selectedIndex = 0;
-let selectedDiffIndex = 0;
+let RENDER_ITEMS = [];        // [{type:'random'}, {type:'search'}, ...{type:'song',song}, {type:'more'}?]
+let selectedRenderIndex = 0;
 let songsAreLive = false;
+
+let screenMode = 'song';      // 'song' | 'difficulty' — mirrors taiko-web's state.screen
+let catIndex = 0;
+let searchActive = false;
+let diffScreenSong = null;
+let selectedDiffIndex = 0;
 
 // --- Live data: hinai v1 search API (CheeseGull-compatible) ---
 // mode is hardcoded to 1 (taiko) everywhere below and never exposed in the
@@ -662,24 +781,34 @@ function setStatusBanner(mode, detail){
   } else {
     el.textContent = `OFFLINE — sample data`;
     el.style.color = 'var(--don)';
-    el.style.background = 'rgba(217,71,71,0.12)';
-    el.style.borderColor = 'rgba(217,71,71,0.35)';
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  WHEEL DATA — RENDER_ITEMS is the flat, click/keyboard-addressable list
+//  the carousel walks over. Random/Search/(More) are entries *within* the
+//  wheel, same as taiko-web's own special song-list entries, rather than
+//  separate buttons bolted onto the chrome.
+// ══════════════════════════════════════════════════════════════════════
+function buildRenderItems(){
+  const items = [{type:'random'}, {type:'search'}];
+  SONGS.forEach(song => items.push({type:'song', song}));
+  if (hasMore) items.push({type:'more'});
+  return items;
 }
 
 async function loadSongs(reset){
   if (isLoadingPage) return;
   isLoadingPage = true;
-  const list = document.getElementById('songList');
-  const loadMoreBtn = document.getElementById('loadMoreBtn');
+  const statusEl = document.getElementById('carouselStatus');
 
   if (reset){
     currentOffset = 0;
     hasMore = true;
-    list.innerHTML = '<div style="padding:20px;color:var(--text-dim);font-size:0.75rem;">Fetching charts from hinai…</div>';
-  } else if (loadMoreBtn){
-    loadMoreBtn.textContent = 'Loading…';
-    loadMoreBtn.disabled = true;
+    statusEl.textContent = 'Fetching charts from hinai…';
+    statusEl.style.display = 'flex';
+  }else{
+    renderCarousel(); // reflect the "more" tile's loading state immediately
   }
 
   try{
@@ -697,158 +826,244 @@ async function loadSongs(reset){
       hasMore = false;
       setStatusBanner('offline', err.message);
     } else {
-      // A page beyond the first failing doesn't need to nuke the list we
-      // already have — just stop offering more and say why.
       hasMore = false;
       alert('Could not load more maps: ' + err.message);
     }
   }
 
+  RENDER_ITEMS = buildRenderItems();
   if (reset){
-    selectedIndex = 0;
-    selectedDiffIndex = 0;
-  }
-  isLoadingPage = false;
-  updatePlayButtonState();
-  renderAll();
-}
-
-function applyFilters(){
-  FILTERS.query = document.getElementById('filterQuery').value.trim();
-  FILTERS.sort = document.getElementById('filterSort').value;
-  FILTERS.status = document.getElementById('filterStatus').value;
-  FILTERS.minStars = document.getElementById('filterMinStars').value;
-  FILTERS.maxStars = document.getElementById('filterMaxStars').value;
-  FILTERS.minBpm = document.getElementById('filterMinBpm').value;
-  FILTERS.maxBpm = document.getElementById('filterMaxBpm').value;
-  loadSongs(true);
-}
-document.getElementById('filterApply').addEventListener('click', applyFilters);
-document.getElementById('filterQuery').addEventListener('keydown', (e) => { if (e.key === 'Enter') applyFilters(); });
-document.getElementById('filterSort').addEventListener('change', applyFilters);
-document.getElementById('filterStatus').addEventListener('change', applyFilters);
-document.getElementById('loadMoreBtn').addEventListener('click', () => loadSongs(false));
-document.getElementById('guessGameBtn').addEventListener('click', () => { window.location.href = 'guessgame.html'; });
-
-function updatePlayButtonState(){
-  const btn = document.getElementById('playBtn');
-  if (songsAreLive){
-    btn.style.opacity = '';
-    btn.style.cursor = '';
-    btn.title = '';
+    selectedRenderIndex = SONGS.length ? 2 : 1; // land on the first song, or the Search tile if the folder's empty
+    // The whole list is new data now (even entries at the same index may be
+    // a different song), so any tiles left over from the old list would show
+    // stale content if reused — wipe them and let the wheel repopulate fresh.
+    tileElements.clear();
+    document.getElementById('carouselTrack').innerHTML = '';
   } else {
-    btn.style.opacity = '0.45';
-    btn.style.cursor = 'not-allowed';
-    btn.title = 'Playing requires a live connection to hinai — currently showing offline sample data';
+    selectedRenderIndex = Math.min(selectedRenderIndex, RENDER_ITEMS.length - 1);
   }
-}
 
-function starString(n){ return '★'.repeat(n); }
-
-function renderList(){
-  const list = document.getElementById('songList');
-  list.innerHTML = '';
   if (songsAreLive && SONGS.length === 0){
-    list.innerHTML = '<div style="padding:20px;color:var(--text-dim);font-size:0.75rem;">No taiko maps match these filters — try widening the range.</div>';
-  }
-  SONGS.forEach((song, i) => {
-    const row = document.createElement('div');
-    row.className = 'song-row' + (i === selectedIndex ? ' selected' : '');
-    const topDiff = song.diffs[song.diffs.length-1];
-    const color = starColor(topDiff.stars);
-    row.style.setProperty('--row-color', color);
-    row.innerHTML = `
-      <div class="song-cover">${song.cover ? `<img alt="" loading="lazy">` : ''}</div>
-      <div class="song-text">
-        <div class="song-title">${song.title}</div>
-        <div class="song-artist">${song.artist}</div>
-      </div>
-      <div class="song-stars">${starString(Math.min(topDiff.stars,5))}${topDiff.stars>5?'+':''}</div>
-      <div class="song-bpm">${song.bpm} BPM</div>
-    `;
-    // Cover art loads over the top of the gradient chip rather than replacing
-    // it — a failed/slow image (cross-origin, 404, still loading) just leaves
-    // the difficulty-tinted gradient showing underneath instead of a blank box.
-    const img = row.querySelector('.song-cover img');
-    if (img){
-      img.addEventListener('load', () => img.classList.add('loaded'));
-      img.addEventListener('error', () => img.remove());
-      img.src = song.cover;
-    }
-    row.addEventListener('click', () => { selectedIndex = i; selectedDiffIndex = song.diffs.length-1; renderAll(); });
-    list.appendChild(row);
-  });
-  document.getElementById('songCount').textContent = SONGS.length + ' CHARTS';
-
-  const loadMoreWrap = document.getElementById('loadMoreWrap');
-  const loadMoreBtn = document.getElementById('loadMoreBtn');
-  if (songsAreLive && hasMore && SONGS.length > 0){
-    loadMoreWrap.style.display = '';
-    loadMoreBtn.textContent = 'Load more charts';
-    loadMoreBtn.disabled = false;
+    statusEl.textContent = 'No taiko maps match these filters — try widening the range.';
+    statusEl.style.display = 'flex';
   } else {
-    loadMoreWrap.style.display = 'none';
+    statusEl.style.display = 'none';
+  }
+
+  isLoadingPage = false;
+  renderCarousel();
+  renderInfobar();
+  renderCategoryBar();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  CAROUSEL — the horizontal wheel of collapsed vertical cards. Only a
+//  window around the selection is ever in the DOM, but — unlike a naive
+//  destroy-and-rebuild — tiles that stay within that window across a move
+//  keep the SAME DOM element, just with an updated transform/width. That's
+//  what actually makes the CSS transitions slide instead of snap.
+//
+//  Positioning walks OFFSETS (-radius..+radius) rather than absolute
+//  indices, wrapping each one through RENDER_ITEMS via modulo — so the
+//  wheel loops seamlessly at both ends, taiko-web-style, instead of
+//  clamping at the first/last song.
+// ══════════════════════════════════════════════════════════════════════
+const COLLAPSED_W = 60;   // closed card width
+const SELECTED_W  = 176;  // open (selected) card width
+const CARD_GAP    = 14;
+const MAX_RADIUS  = 12;
+
+// Non-selected cards sit at a constant width, so their spacing is uniform —
+// only the jump across the (wider) selected card in the middle needs the
+// extra math.
+function tileOffsetX(offset){
+  if (offset === 0) return 0;
+  const dir = offset > 0 ? 1 : -1;
+  const n = Math.abs(offset);
+  const x = SELECTED_W / 2 + CARD_GAP + COLLAPSED_W / 2 + (n - 1) * (COLLAPSED_W + CARD_GAP);
+  return dir * x;
+}
+
+function effectiveRadius(len){
+  const wrapEl = document.getElementById('carouselWrap');
+  const w = (wrapEl && wrapEl.clientWidth) || 1100;
+  const fit = Math.ceil((w / 2 - SELECTED_W / 2) / (COLLAPSED_W + CARD_GAP)) + 1;
+  const byWidth = Math.max(3, Math.min(MAX_RADIUS, fit));
+  return Math.min(byWidth, Math.floor((len - 1) / 2)); // never let offsets alias onto the same index
+}
+
+function contentKeyFor(item){
+  return item.type === 'song' ? `song:${item.song.setId}:${item.song.title}` : `type:${item.type}`;
+}
+
+function buildTileContent(el, item){
+  el.innerHTML = '';
+  if (item.type === 'song'){
+    const song = item.song;
+    const topDiff = song.diffs[song.diffs.length - 1];
+    el.style.setProperty('--tile-color', starColor(topDiff.stars));
+    el.style.background = `linear-gradient(165deg, ${song.coverA}, ${song.coverB})`;
+    if (song.cover){
+      const cover = document.createElement('div');
+      cover.className = 'tc-cover';
+      const probe = new Image();
+      probe.onload = () => { cover.style.backgroundImage = `url('${song.cover}')`; cover.classList.add('loaded'); };
+      probe.onerror = () => {};
+      probe.src = song.cover;
+      el.appendChild(cover);
+    }
+    const scrim = document.createElement('div'); scrim.className = 'tc-scrim'; el.appendChild(scrim);
+    const title = document.createElement('div'); title.className = 'tc-title'; title.textContent = song.title; el.appendChild(title);
+    const artist = document.createElement('div'); artist.className = 'tc-artist'; artist.textContent = song.artist; el.appendChild(artist);
+  } else {
+    const meta = {
+      random: { icon:'🎲', label:'Random', color:'var(--random)' },
+      search: { icon:'🔍', label:'Search', color:'var(--don)' },
+      more:   { icon:'⬇',  label:'More',   color:'var(--text-dim)' },
+    }[item.type];
+    el.style.setProperty('--tile-color', meta.color);
+    el.style.background = `linear-gradient(165deg, ${meta.color}, rgba(0,0,0,0.45))`;
+    const scrim = document.createElement('div'); scrim.className = 'tc-scrim'; el.appendChild(scrim);
+    const icon = document.createElement('div'); icon.className = 'tc-icon'; icon.textContent = meta.icon; el.appendChild(icon);
+    const title = document.createElement('div'); title.className = 'tc-title'; title.textContent = meta.label; el.appendChild(title);
+    const artist = document.createElement('div'); artist.className = 'tc-artist'; el.appendChild(artist);
   }
 }
 
-function renderInfo(){
-  const song = SONGS[selectedIndex];
-  document.getElementById('coverTitle').textContent = song.title;
-  document.getElementById('coverArtist').textContent = song.artist;
-  document.getElementById('metaBpm').textContent = song.bpm;
-  document.getElementById('metaLen').textContent = song.length;
-  document.getElementById('mapperName').textContent = song.mapper;
+const tileElements = new Map(); // RENDER_ITEMS index -> persistent DOM element, so moves animate instead of popping
 
-  const cover = document.getElementById('cover');
-  cover.style.setProperty('--cover-a', song.coverA);
-  cover.style.setProperty('--cover-b', song.coverB);
-  cover.style.backgroundImage = '';
-  cover.style.backgroundSize = 'cover';
-  cover.style.backgroundPosition = 'center';
-  if (song.cover){
-    const probe = new Image();
-    probe.onload = () => {
-      // only apply if this is still the selected song (avoids race on fast navigation)
-      if (SONGS[selectedIndex] === song){
-        cover.style.backgroundImage = `linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0.15) 60%), url('${song.cover}')`;
-      }
-    };
-    probe.src = song.cover;
+function renderCarousel(){
+  const track = document.getElementById('carouselTrack');
+  if (!RENDER_ITEMS.length){ track.innerHTML = ''; tileElements.clear(); return; }
+
+  const len = RENDER_ITEMS.length;
+  const radius = effectiveRadius(len);
+  const neededIdx = new Set();
+  for (let offset = -radius; offset <= radius; offset++){
+    neededIdx.add(((selectedRenderIndex + offset) % len + len) % len);
   }
 
+  // Tiles that fell out of the visible window: slide them the rest of the
+  // way out and fade, then remove once the transition's had time to play.
+  for (const [idx, el] of tileElements){
+    if (neededIdx.has(idx)) continue;
+    const lastOffset = Number(el.dataset.offset || 0);
+    const dir = lastOffset === 0 ? 1 : Math.sign(lastOffset);
+    el.style.transform = `translateX(${tileOffsetX(lastOffset + dir * 2)}px)`;
+    el.style.opacity = '0';
+    el.style.pointerEvents = 'none';
+    tileElements.delete(idx);
+    setTimeout(() => el.remove(), 420);
+  }
+
+  for (let offset = -radius; offset <= radius; offset++){
+    const idx = ((selectedRenderIndex + offset) % len + len) % len;
+    const item = RENDER_ITEMS[idx];
+    const isSelected = offset === 0;
+    const dist = Math.abs(offset);
+    let el = tileElements.get(idx);
+
+    if (!el){
+      el = document.createElement('div');
+      el.className = 'tile';
+      el.addEventListener('click', () => handleTileClick(idx));
+      // Spawn one slot further out (in the direction it's entering from) and
+      // invisible, then let the normal transform below animate it inward —
+      // that's what makes new tiles slide in rather than pop into place.
+      const spawnDir = offset === 0 ? 1 : Math.sign(offset);
+      el.style.width = COLLAPSED_W + 'px';
+      el.style.marginLeft = -(COLLAPSED_W / 2) + 'px';
+      el.style.transform = `translateX(${tileOffsetX(offset + spawnDir)}px)`;
+      el.style.opacity = '0';
+      track.appendChild(el);
+      tileElements.set(idx, el);
+      void el.offsetWidth; // commit the spawn position before the target styles below trigger the transition
+    }
+
+    const key = contentKeyFor(item);
+    if (el.dataset.contentKey !== key){
+      buildTileContent(el, item);
+      el.dataset.contentKey = key;
+    }
+    if (item.type === 'more'){
+      const iconEl = el.querySelector('.tc-icon');
+      if (iconEl) iconEl.textContent = isLoadingPage ? '⏳' : '⬇';
+    }
+
+    const targetW = isSelected ? SELECTED_W : COLLAPSED_W;
+    el.classList.toggle('selected', isSelected);
+    el.style.width = targetW + 'px';
+    el.style.marginLeft = -(targetW / 2) + 'px';
+    el.style.transform = `translateX(${tileOffsetX(offset)}px)`;
+    el.style.opacity = isSelected ? '1' : Math.max(0.28, 1 - dist * 0.10).toFixed(2);
+    el.style.zIndex = String(100 - dist);
+    el.style.pointerEvents = '';
+    el.dataset.offset = String(offset);
+  }
+}
+
+function handleTileClick(idx){
+  if (idx === selectedRenderIndex){
+    confirmSelection();
+  } else {
+    selectedRenderIndex = idx;
+    maybeAutoLoadMore();
+    renderCarousel();
+    renderInfobar();
+  }
+}
+
+// Circular — wraps past either end back to the other side, same as
+// taiko-web's own song wheel, rather than clamping at the first/last item.
+function moveSelection(delta){
+  if (screenMode !== 'song' || !RENDER_ITEMS.length) return;
+  const len = RENDER_ITEMS.length;
+  selectedRenderIndex = ((selectedRenderIndex + delta) % len + len) % len;
+  maybeAutoLoadMore();
+  renderCarousel();
+  renderInfobar();
+}
+
+function maybeAutoLoadMore(){
+  if (!hasMore || isLoadingPage) return;
+  if (selectedRenderIndex >= RENDER_ITEMS.length - 5) loadSongs(false);
+}
+
+function jumpToRandomSong(){
+  const songIndices = [];
+  RENDER_ITEMS.forEach((it, i) => { if (it.type === 'song') songIndices.push(i); });
+  if (!songIndices.length) return;
+  let pick = songIndices[Math.floor(Math.random() * songIndices.length)];
+  if (songIndices.length > 1){
+    while (pick === selectedRenderIndex){
+      pick = songIndices[Math.floor(Math.random() * songIndices.length)];
+    }
+  }
+  selectedRenderIndex = pick;
+  maybeAutoLoadMore();
+  renderCarousel();
+  renderInfobar();
+}
+
+function confirmSelection(){
+  const item = RENDER_ITEMS[selectedRenderIndex];
+  if (!item) return;
+  if (item.type === 'song') openDifficultyScreen(item.song);
+  else if (item.type === 'random') jumpToRandomSong();
+  else if (item.type === 'search') openSearchOverlay();
+  else if (item.type === 'more') loadSongs(false);
+}
+
+function setWash(a, b){
   const wash = document.getElementById('wash');
-  wash.style.setProperty('--wash-a', song.coverA);
-  wash.style.setProperty('--wash-b', song.coverB);
-
-  const diffList = document.getElementById('diffList');
-  diffList.innerHTML = '';
-  song.diffs.forEach((diff, i) => {
-    const info = DIFF_COLORS[diff.d];
-    const color = starColor(diff.stars);
-    const btn = document.createElement('div');
-    btn.className = 'diff-btn' + (i === selectedDiffIndex ? ' active' : '');
-    btn.style.setProperty('--diff-color', color);
-    btn.innerHTML = `
-      <div class="drum-dot" style="--diff-color:${color}"></div>
-      <div class="diff-name">${diff.name || info.name}</div>
-      <div class="diff-stars">${starString(Math.min(diff.stars,5))}${diff.stars>5?' +'+(diff.stars-5):''}</div>
-    `;
-    btn.addEventListener('click', () => { selectedDiffIndex = i; renderAll(); });
-    diffList.appendChild(btn);
-  });
-
-  document.getElementById('metaStars').textContent = song.diffs[selectedDiffIndex].stars;
-
-  cover.style.setProperty('--diff-color', starColor(song.diffs[selectedDiffIndex].stars));
-
-  renderNoteStrip();
+  wash.style.setProperty('--wash-a', a || 'transparent');
+  wash.style.setProperty('--wash-b', b || 'transparent');
 }
 
 function renderNoteStrip(){
   const track = document.getElementById('noteTrack');
   track.innerHTML = '';
   const pattern = ['don','don','katsu','don','katsu','katsu','don','big-don','katsu','don','don','katsu'];
-  // duplicate pattern so the scroll loop feels continuous
   [...pattern, ...pattern].forEach(type => {
     const note = document.createElement('div');
     const big = type.startsWith('big-');
@@ -858,17 +1073,199 @@ function renderNoteStrip(){
   });
 }
 
-function renderAll(){
-  renderList();
-  renderInfo();
+function renderInfobar(){
+  const item = RENDER_ITEMS[selectedRenderIndex];
+  const selectBtn = document.getElementById('selectBtn');
+  const thumb = document.getElementById('coverThumb');
+
+  if (!item || item.type !== 'song'){
+    const placeholders = {
+      random: ['Random', 'Press Enter to jump to a random chart'],
+      search: ['Search', 'Press Enter to search by title, artist, or mapper'],
+      more:   ['Load more charts', 'Press Enter to fetch the next page'],
+    };
+    const [title, subtitle] = placeholders[item && item.type] || ['', ''];
+    document.getElementById('infoTitle').textContent = title;
+    document.getElementById('infoSubtitle').textContent = subtitle;
+    document.getElementById('mapperName').textContent = '';
+    document.getElementById('metaBpm').textContent = '';
+    document.getElementById('metaLen').textContent = '';
+    document.getElementById('metaStars').textContent = '';
+    document.getElementById('noteTrack').innerHTML = '';
+    thumb.style.background = '';
+    thumb.style.backgroundImage = '';
+    selectBtn.disabled = true;
+    setWash(null, null);
+    return;
+  }
+
+  const song = item.song;
+  document.getElementById('infoTitle').textContent = song.title;
+  document.getElementById('infoSubtitle').textContent = song.artist;
+  document.getElementById('mapperName').textContent = song.mapper;
+  document.getElementById('metaBpm').textContent = song.bpm;
+  document.getElementById('metaLen').textContent = song.length;
+  const topDiff = song.diffs[song.diffs.length - 1];
+  document.getElementById('metaStars').textContent = topDiff.stars;
+
+  setWash(song.coverA, song.coverB);
+
+  thumb.style.background = `linear-gradient(135deg, ${song.coverA}, ${song.coverB})`;
+  thumb.style.backgroundImage = '';
+  if (song.cover){
+    const probe = new Image();
+    probe.onload = () => {
+      if (RENDER_ITEMS[selectedRenderIndex] === item){
+        thumb.style.backgroundSize = 'cover';
+        thumb.style.backgroundPosition = 'center';
+        thumb.style.backgroundImage = `linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0.1) 60%), url('${song.cover}')`;
+      }
+    };
+    probe.src = song.cover;
+  }
+
+  renderNoteStrip();
+  selectBtn.disabled = !songsAreLive;
+}
+
+function renderCategoryBar(){
+  const nameEl = document.getElementById('catName');
+  const countEl = document.getElementById('catCount');
+  const pill = document.getElementById('catPill');
+  const prevName = nameEl.textContent;
+  if (searchActive){
+    nameEl.textContent = `Search: "${FILTERS.query}"`;
+    pill.style.setProperty('--cat-color', 'var(--don)');
+  } else {
+    const cat = CATEGORIES[catIndex];
+    nameEl.textContent = cat.label;
+    pill.style.setProperty('--cat-color', cat.color);
+  }
+  countEl.textContent = songsAreLive ? (SONGS.length + (hasMore ? '+' : '') + ' charts') : 'offline sample';
+  if (nameEl.textContent !== prevName){
+    pill.classList.remove('bump');
+    void pill.offsetWidth; // restart the animation even if it fires again before finishing
+    pill.classList.add('bump');
+  }
+}
+
+function changeCategory(delta){
+  if (screenMode !== 'song') return;
+  if (searchActive){
+    // Leaving a search always drops back to plain category browsing, same
+    // as taiko-web returning to the folder tree when you back out of search.
+    searchActive = false;
+    FILTERS.query = '';
+    document.getElementById('filterQuery').value = '';
+    loadSongs(true);
+    return;
+  }
+  catIndex = (catIndex + delta + CATEGORIES.length) % CATEGORIES.length;
+  FILTERS.status = CATEGORIES[catIndex].key;
+  document.getElementById('filterStatus').value = FILTERS.status;
+  loadSongs(true);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  SEARCH OVERLAY — the "search" wheel tile (or the / key) opens this;
+//  it's a stand-in for taiko-web's own text-search screen, adapted to
+//  hinai's actual query params (star/BPM range, sort, status).
+// ══════════════════════════════════════════════════════════════════════
+function openSearchOverlay(){
+  document.getElementById('searchOverlay').classList.add('active');
+  setTimeout(() => document.getElementById('filterQuery').focus(), 50);
+}
+function closeSearchOverlay(){
+  document.getElementById('searchOverlay').classList.remove('active');
+}
+function applyFilters(){
+  FILTERS.query = document.getElementById('filterQuery').value.trim();
+  FILTERS.sort = document.getElementById('filterSort').value;
+  FILTERS.status = document.getElementById('filterStatus').value;
+  FILTERS.minStars = document.getElementById('filterMinStars').value;
+  FILTERS.maxStars = document.getElementById('filterMaxStars').value;
+  FILTERS.minBpm = document.getElementById('filterMinBpm').value;
+  FILTERS.maxBpm = document.getElementById('filterMaxBpm').value;
+  searchActive = !!FILTERS.query;
+  if (!searchActive){
+    const idx = CATEGORIES.findIndex(c => c.key === FILTERS.status);
+    if (idx !== -1) catIndex = idx;
+  }
+  closeSearchOverlay();
+  loadSongs(true);
+}
+document.getElementById('filterApply').addEventListener('click', applyFilters);
+document.getElementById('filterQuery').addEventListener('keydown', (e) => { if (e.key === 'Enter') applyFilters(); });
+document.getElementById('filterSort').addEventListener('change', applyFilters);
+document.getElementById('filterStatus').addEventListener('change', applyFilters);
+document.getElementById('searchCloseBtn').addEventListener('click', closeSearchOverlay);
+document.getElementById('searchOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'searchOverlay') closeSearchOverlay();
+});
+
+// ══════════════════════════════════════════════════════════════════════
+//  DIFFICULTY SCREEN — step two, opened on confirm. Difficulties are drawn
+//  as a horizontal row of tall capsules (taiko-web's own vertical-pill
+//  course icons), colour-coded by star rating, cycled with ←/→.
+// ══════════════════════════════════════════════════════════════════════
+function openDifficultyScreen(song){
+  diffScreenSong = song;
+  selectedDiffIndex = song.diffs.length - 1; // default to the hardest chart, same as before
+  screenMode = 'difficulty';
+  document.getElementById('diffTitle').textContent = song.title;
+  document.getElementById('diffArtist').textContent = song.artist;
+  buildDiffCapsules();   // built once per open — cycling below only toggles .selected on these same elements
+  updateDiffSelection();
+  document.getElementById('diffScreen').classList.add('active');
+}
+function closeDifficultyScreen(){
+  screenMode = 'song';
+  document.getElementById('diffScreen').classList.remove('active');
+}
+function moveDiff(delta){
+  if (!diffScreenSong) return;
+  const n = diffScreenSong.diffs.length;
+  selectedDiffIndex = ((selectedDiffIndex + delta) % n + n) % n;
+  updateDiffSelection();
+}
+
+// Built fresh only when the difficulty screen opens on a (possibly new)
+// song. Cycling with ←/→ afterwards just re-toggles .selected on these same
+// elements instead of rebuilding — that's what lets the capsule-hop actually
+// animate via the CSS transition rather than snapping.
+function buildDiffCapsules(){
+  const wrap = document.getElementById('diffCapsules');
+  wrap.innerHTML = '';
+  diffScreenSong.diffs.forEach((diff, i) => {
+    const info = DIFF_COLORS[diff.d];
+    const color = starColor(diff.stars);
+    const capsule = document.createElement('div');
+    capsule.className = 'diffcapsule';
+    capsule.style.setProperty('--diff-color', color);
+    capsule.style.animationDelay = (i * 0.05) + 's'; // staggered pop-in across the row
+    const dot = document.createElement('div'); dot.className = 'dc-dot'; capsule.appendChild(dot);
+    const name = document.createElement('div'); name.className = 'dc-name'; name.textContent = diff.name || info.name; capsule.appendChild(name);
+    const stars = document.createElement('div'); stars.className = 'dc-stars';
+    stars.textContent = starString(Math.min(diff.stars, 5)) + (diff.stars > 5 ? ' +' + (diff.stars - 5) : '');
+    capsule.appendChild(stars);
+    capsule.addEventListener('click', () => {
+      if (i === selectedDiffIndex) triggerPlay();
+      else { selectedDiffIndex = i; updateDiffSelection(); }
+    });
+    wrap.appendChild(capsule);
+  });
+}
+function updateDiffSelection(){
+  const capsules = document.querySelectorAll('#diffCapsules .diffcapsule');
+  capsules.forEach((c, i) => c.classList.toggle('selected', i === selectedDiffIndex));
+  document.getElementById('diffPlayBtn').disabled = !songsAreLive;
 }
 
 // ══════════════════════════════════════════════════════════════════════
 //  GAMEPLAY HANDOFF — Play downloads the .osz from hinai (direct, falling
-//  back to the proxy worker, same pattern as the search fetch above), then
-//  hands the raw bytes to gameplay.html via postMessage once it signals
-//  it's ready. The iframe is reloaded fresh on every Play so gameplay state
-//  never leaks between songs/attempts.
+//  back to the proxy worker), then hands the raw bytes to gameplay.html via
+//  postMessage once it signals it's ready. The iframe is reloaded fresh on
+//  every Play so gameplay state never leaks between songs/attempts.
 // ══════════════════════════════════════════════════════════════════════
 const gameFrame = document.getElementById('gameFrame');
 let pendingLoadPayload = null;
@@ -929,13 +1326,13 @@ async function downloadOszBytes(setId){
 }
 
 let isDownloading = false;
-document.getElementById('playBtn').addEventListener('click', async () => {
-  if (!songsAreLive) return; // offline sample data has no real map to download
-  if (isDownloading) return; // guards against a stray/duplicate trigger (e.g. Enter) while one is already in flight
-  isDownloading = true;
-  const song = SONGS[selectedIndex];
+async function triggerPlay(){
+  if (!songsAreLive || !diffScreenSong) return; // offline sample data has no real map to download
+  if (isDownloading) return; // guards against a stray/duplicate trigger while one is already in flight
+  const song = diffScreenSong;
   const diff = song.diffs[selectedDiffIndex];
-  const playBtn = document.getElementById('playBtn');
+  isDownloading = true;
+  const playBtn = document.getElementById('diffPlayBtn');
   const originalText = playBtn.textContent;
   playBtn.textContent = 'DOWNLOADING…';
   playBtn.style.pointerEvents = 'none';
@@ -952,20 +1349,51 @@ document.getElementById('playBtn').addEventListener('click', async () => {
     playBtn.style.pointerEvents = '';
     isDownloading = false;
   }
-});
+}
+
+// ---------- controls ----------
+document.getElementById('sideLeft').addEventListener('click', () => moveSelection(-1));
+document.getElementById('sideRight').addEventListener('click', () => moveSelection(1));
+document.getElementById('catPrev').addEventListener('click', () => changeCategory(-1));
+document.getElementById('catNext').addEventListener('click', () => changeCategory(1));
+document.getElementById('selectBtn').addEventListener('click', confirmSelection);
+document.getElementById('diffBackBtn').addEventListener('click', closeDifficultyScreen);
+document.getElementById('diffPlayBtn').addEventListener('click', triggerPlay);
+document.getElementById('guessGameBtn').addEventListener('click', () => { window.location.href = 'guessgame.html'; });
+document.getElementById('exitBtn').addEventListener('click', () => { if (history.length > 1) history.back(); });
+
+document.getElementById('carouselWrap').addEventListener('wheel', (e) => {
+  if (screenMode !== 'song') return;
+  e.preventDefault();
+  moveSelection(e.deltaY > 0 ? 1 : -1);
+}, {passive:false});
 
 window.addEventListener('keydown', (e) => {
-  // Don't hijack keys while the person is typing/selecting in the filter bar —
-  // this was the cause of Enter in the search box (or arrows in a stars/BPM
-  // field) *also* triggering song navigation or an instant Play in the background.
   const tag = e.target && e.target.tagName;
+
+  if (document.getElementById('searchOverlay').classList.contains('active')){
+    if (e.key === 'Escape') closeSearchOverlay();
+    return; // let the overlay's own inputs behave normally otherwise
+  }
+  // Don't hijack keys while the person is typing/selecting elsewhere —
+  // this was the cause of Enter in a stray field also triggering
+  // navigation or an instant confirm in the background.
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
 
-  if (e.key === 'ArrowDown'){ selectedIndex = (selectedIndex+1) % SONGS.length; selectedDiffIndex = 0; renderAll(); }
-  if (e.key === 'ArrowUp'){ selectedIndex = (selectedIndex-1+SONGS.length) % SONGS.length; selectedDiffIndex = 0; renderAll(); }
-  if (e.key === 'ArrowRight'){ const song = SONGS[selectedIndex]; selectedDiffIndex = Math.min(selectedDiffIndex+1, song.diffs.length-1); renderAll(); }
-  if (e.key === 'ArrowLeft'){ selectedDiffIndex = Math.max(selectedDiffIndex-1, 0); renderAll(); }
-  if (e.key === 'Enter'){ document.getElementById('playBtn').click(); }
+  if (screenMode === 'difficulty'){
+    if (e.key === 'ArrowLeft') moveDiff(-1);
+    else if (e.key === 'ArrowRight') moveDiff(1);
+    else if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); triggerPlay(); }
+    else if (e.key === 'Escape' || e.key === 'Backspace') closeDifficultyScreen();
+    return;
+  }
+
+  if (e.key === 'ArrowLeft') moveSelection(e.ctrlKey ? -5 : -1);
+  else if (e.key === 'ArrowRight') moveSelection(e.ctrlKey ? 5 : 1);
+  else if (e.key === 'ArrowUp') changeCategory(-1);
+  else if (e.key === 'ArrowDown') changeCategory(1);
+  else if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); confirmSelection(); }
+  else if (e.key === '/' || e.key.toLowerCase() === 'f'){ e.preventDefault(); openSearchOverlay(); }
 });
 
 // Ambient drifting notes in the background grid, echoing the editor's title screen.
@@ -993,7 +1421,11 @@ window.addEventListener('keydown', (e) => {
   }
 })();
 
-updatePlayButtonState();
+// Show something immediately (the Random/Search tiles) while the first fetch is in flight.
+RENDER_ITEMS = buildRenderItems();
+renderCarousel();
+renderInfobar();
+renderCategoryBar();
 loadSongs(true);
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/eruda/3.0.1/eruda.min.js"></script>
